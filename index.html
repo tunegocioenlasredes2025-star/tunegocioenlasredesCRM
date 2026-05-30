@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TNR · Sistema Operativo</title>
+  <link rel="icon" href="logo.png" />
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-logo"><img src="logo.png" alt="Tu Negocio En Las Redes" onerror="this.onerror=null;this.src='logo.svg'" /></div>
+        <div class="brand-text">
+          <strong>Tu Negocio</strong>
+          <span>En Las Redes</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard"><span class="nav-ic">◧</span> Dashboard</button>
+        <button class="nav-item" data-view="prospectos"><span class="nav-ic">◎</span> Prospectos</button>
+        <button class="nav-item" data-view="clientes"><span class="nav-ic">★</span> Clientes</button>
+        <button class="nav-item" data-view="tareas"><span class="nav-ic">✓</span> Tareas</button>
+        <button class="nav-item" data-view="notificaciones"><span class="nav-ic">◔</span> Notificaciones <span class="badge-count" id="notifBadge" hidden>0</span></button>
+      </nav>
+      <div class="cloud-status" id="cloudStatus"><span class="cs-dot"></span><span id="cloudStatusText">Conectando…</span></div>
+      <div class="sidebar-foot">
+        <button class="btn-ghost" id="btnExport" title="Descargar copia de seguridad">⭳ Backup</button>
+        <button class="btn-ghost" id="btnImport" title="Restaurar copia">⭱ Restaurar</button>
+        <input type="file" id="importFile" accept="application/json" hidden />
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <button class="hamburger" id="hamburger" aria-label="Menú">☰</button>
+        <div class="search-wrap">
+          <span class="search-ic">⌕</span>
+          <input type="search" id="globalSearch" placeholder="Buscar: inmobiliarias, Morón, ganados, sin respuesta, web…" autocomplete="off" />
+        </div>
+        <div class="topbar-actions">
+          <button class="btn-primary" id="btnQuickAdd">＋ Nuevo prospecto</button>
+        </div>
+      </header>
+      <section class="view" id="view"></section>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay" hidden>
+    <div class="modal" id="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h2 id="modalTitle">Título</h2>
+        <button class="modal-close" id="modalClose" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="data.js"></script>
+  <script src="parser.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

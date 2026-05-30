@@ -1,0 +1,31 @@
+<svg viewBox="0 0 260 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tu Negocio En Las Redes">
+  <!-- ÓRBITA VERTICAL (abierta arriba-derecha) -->
+  <path d="M150 52
+           C92 60 60 120 62 168
+           C64 220 104 244 130 244
+           C168 244 196 200 194 150
+           C193 118 178 84 150 66"
+        fill="none" stroke="#0E3D78" stroke-width="14" stroke-linecap="round"
+        transform="rotate(-8 128 150)"/>
+  <!-- flecha superior de la órbita vertical (apunta hacia abajo-derecha) -->
+  <path d="M132 32 l46 14 -46 16 z" fill="#0E3D78" transform="rotate(18 155 50)"/>
+
+  <!-- ÓRBITA HORIZONTAL (abierta a la derecha) -->
+  <path d="M150 108
+           C92 100 38 116 30 150
+           C24 182 70 204 128 206
+           C186 208 232 188 230 156
+           C229 134 206 118 178 112"
+        fill="none" stroke="#0E3D78" stroke-width="14" stroke-linecap="round"
+        transform="rotate(-6 130 158)"/>
+  <!-- flecha derecha de la órbita horizontal (apunta hacia abajo-izquierda) -->
+  <path d="M236 150 l-14 46 -16 -46 z" fill="#0E3D78" transform="rotate(28 222 172)"/>
+
+  <!-- AVIÓN DE PAPEL -->
+  <!-- cara clara (celeste) -->
+  <path d="M186 110 L70 176 L128 158 Z" fill="#1C9FE2"/>
+  <!-- destello fino -->
+  <path d="M186 110 L96 162 L128 158 Z" fill="#3FB5EE"/>
+  <!-- cara oscura (marino) -->
+  <path d="M186 110 L128 158 L140 204 Z" fill="#0E3D78"/>
+</svg>
