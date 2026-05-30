@@ -57,12 +57,33 @@ crm-tnr/
 
 Sin dependencias ni build. La única request externa es la fuente *Inter* (Google Fonts); si no hay internet, usa la fuente del sistema sin problema.
 
-## Despliegue (opcional)
+## Base de datos compartida (Supabase)
 
-Como es estático, se sube tal cual a **GitHub Pages** o **Vercel** (importás la carpeta y deploy, sin configuración). Cada usuario tendría sus propios datos en su navegador.
+Para que el equipo vea y edite los mismos datos desde cualquier dispositivo:
+
+1. Crear cuenta gratis en https://supabase.com → **New project** (elegí región Sudamérica). Anotá la contraseña.
+2. En el proyecto → **SQL Editor** → **New query** → pegar TODO el contenido de [`supabase-setup.sql`](supabase-setup.sql) → **Run**.
+3. **Settings → API** → copiar **Project URL** y la clave **anon public**.
+4. Pegar ambas en [`config.js`](config.js):
+   ```js
+   window.SUPABASE_URL = 'https://xxxx.supabase.co';
+   window.SUPABASE_ANON_KEY = 'eyJhbGc...';
+   ```
+5. Guardar, commit y push → Vercel redespliega solo. El indicador del sidebar pasa a **"Nube conectada"** (verde).
+
+Sin claves, la app funciona en modo local (cada navegador con sus datos).
+
+## Despliegue (Vercel)
+
+El repo está en GitHub. Para publicar:
+
+1. Entrar a https://vercel.com con la cuenta (login con GitHub).
+2. **Add New… → Project** → importar el repo `tunegocioenlasredesCRM`.
+3. Framework: **Other** · sin build · output por defecto → **Deploy**.
+4. Queda una URL pública (ej. `tunegocioenlasredescrm.vercel.app`). Cada push a `main` redespliega automáticamente.
 
 ## Próximas versiones (roadmap)
 
-- Sincronización en la nube multi-dispositivo (Supabase) para compartir datos entre el equipo.
+- Login por usuario (que cada uno entre con su cuenta) y permisos.
 - Chat inteligente con IA real para interpretación más precisa.
 - Automatizaciones de captación y outreach.
