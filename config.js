@@ -1,14 +1,9 @@
 /* ============================================================
    TNR · Configuración de la base de datos compartida (Supabase)
    ------------------------------------------------------------
-   Pegá acá las 2 claves PÚBLICAS de tu proyecto Supabase:
-   Supabase → tu proyecto → Settings → API
-     - Project URL        → SUPABASE_URL
-     - Project API keys → "anon public" → SUPABASE_ANON_KEY
-
-   Si quedan vacías, la app funciona en modo local (cada
-   dispositivo con sus propios datos). Con las claves cargadas,
-   todos comparten los mismos datos en tiempo real.
+   Estas son claves PÚBLICAS (van del lado del navegador, no hay
+   problema en que estén en el repo). NUNCA pongas acá la clave
+   "secret" / service_role.
    ============================================================ */
-window.SUPABASE_URL = '';
-window.SUPABASE_ANON_KEY = '';
+window.SUPABASE_URL = 'https://oqhzonwrcldwtdfurhzj.supabase.co';
+window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9xaHpvbndyY2xkd3RkZnVyaHpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzIzNTEsImV4cCI6MjA5NTc0ODM1MX0.yhRmByi1fjJC-EwhZdmofQ3W9-TJ89ELYmfanq3aHU0';
