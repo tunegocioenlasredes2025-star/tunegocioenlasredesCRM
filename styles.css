@@ -302,7 +302,41 @@ tbody tr:hover .row-actions { opacity: 1; }
   .topbar-actions .btn-primary::before { content: '＋'; font-size: 16px; }
   .view { padding: 16px; }
   .table-wrap { overflow-x: auto; }
-  table { min-width: 640px; }
+  table { min-width: 620px; }
+  .row-actions { opacity: 1; }            /* acciones siempre visibles (táctil) */
+  .head-actions { width: 100%; }
+  .head-actions .btn-primary, .head-actions .btn-secondary { flex: 1 1 auto; text-align: center; }
+}
+
+/* ===== Teléfonos: tablas -> tarjetas apiladas ===== */
+@media (max-width: 680px) {
+  .topbar { padding: 12px 16px; gap: 10px; }
+  #globalSearch { padding: 10px 12px 10px 36px; }
+
+  .table-wrap { overflow: visible; border: none; background: transparent; border-radius: 0; }
+  table, thead, tbody, tr, th, td { display: block; }
+  table { min-width: 0; }
+  thead { display: none; }                /* ocultar encabezados */
+  tbody tr { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 12px; padding: 4px 2px; cursor: pointer; }
+  tbody td { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 9px 14px; border-bottom: 1px solid var(--border); text-align: right; }
+  tbody tr td:last-child { border-bottom: none; }
+  tbody td::before { content: attr(data-label); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-faint); font-weight: 600; text-align: left; flex-shrink: 0; }
+  tbody td[data-label=""] { justify-content: flex-end; }
+  tbody td[data-label=""]::before { content: none; }
+  tbody td .row-actions { opacity: 1; }
+  tbody td .progress-bar { width: 80px !important; }
+
+  .kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+  .kpi .k-val { font-size: 22px; }
+  .view-head h1 { font-size: 19px; }
+  .modal-overlay { padding: 10px; }
+  .modal { max-height: 94vh; }
+  .modal-body { padding: 16px; }
+  .modal-head { padding: 14px 16px; }
+  .tabs { gap: 0; }
+  .tab { padding: 9px 11px; font-size: 12px; }
+  .filters { gap: 8px; }
+  .filters select { flex: 1 1 42%; }
 }
 .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
 .sidebar-backdrop.show { display: block; }

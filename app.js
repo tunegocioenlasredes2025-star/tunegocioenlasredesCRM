@@ -259,13 +259,13 @@
         const d = daysUntil(p.fechaSeguimiento);
         const segTag = p.fechaSeguimiento ? (d < 0 ? `<span class="tag" style="color:#ff5d6c">${fmtDate(p.fechaSeguimiento)}</span>` : d === 0 ? `<span class="tag" style="color:#f5c451">hoy</span>` : fmtDate(p.fechaSeguimiento)) : '<span class="cell-dim">—</span>';
         return `<tr onclick="TNR.abrirProspecto('${p.id}')">
-          <td><div class="cell-strong">${esc(p.empresa || p.nombre || 'Sin nombre')}</div>${p.empresa && p.nombre ? `<div class="cell-dim">${esc(p.nombre)}</div>` : ''}</td>
-          <td>${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : '<span class="cell-dim">—</span>'}</td>
-          <td class="cell-dim">${esc(p.ciudad) || '—'}</td>
-          <td>${estadoChip(p.estado)}</td>
-          <td class="cell-dim">${esc(p.metodoContacto) || '—'}</td>
-          <td>${segTag}</td>
-          <td><div class="row-actions" onclick="event.stopPropagation()">
+          <td data-label="Empresa"><div class="cell-strong">${esc(p.empresa || p.nombre || 'Sin nombre')}</div>${p.empresa && p.nombre ? `<div class="cell-dim">${esc(p.nombre)}</div>` : ''}</td>
+          <td data-label="Rubro">${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : '<span class="cell-dim">—</span>'}</td>
+          <td data-label="Ciudad" class="cell-dim">${esc(p.ciudad) || '—'}</td>
+          <td data-label="Estado">${estadoChip(p.estado)}</td>
+          <td data-label="Método" class="cell-dim">${esc(p.metodoContacto) || '—'}</td>
+          <td data-label="Seguimiento">${segTag}</td>
+          <td data-label=""><div class="row-actions" onclick="event.stopPropagation()">
             ${p.whatsapp ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="https://wa.me/${waNum(p.whatsapp)}">✆</a>` : ''}
             <button class="icon-btn" title="Editar" onclick="TNR.editarProspecto('${p.id}')">✎</button>
             <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarProspecto('${p.id}')">🗑</button>
@@ -484,14 +484,14 @@
           const pct = tot ? Math.round(pub / tot * 100) : 0;
           const ec = c.estado === 'Activo' ? '#3ecf8e' : '#8b94a8';
           return `<tr onclick="TNR.abrirCliente('${c.id}')">
-            <td><div class="cell-strong">${esc(c.empresa || c.nombre)}</div>${c.empresa && c.nombre ? `<div class="cell-dim">${esc(c.nombre)}</div>` : ''}</td>
-            <td>${c.rubro ? `<span class="tag">${esc(c.rubro)}</span>` : '—'}</td>
-            <td class="cell-dim">${esc(c.ciudad) || '—'}</td>
-            <td class="cell-dim">${c.servicios.length || '—'}</td>
-            <td class="cell-strong">${mensual ? fmtMoney(mensual) : '—'}</td>
-            <td>${tot ? `<div class="flex"><span class="cell-dim">${pub}/${tot}</span><div class="progress-bar" style="width:60px"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : '—'}</td>
-            <td><span class="chip" style="background:${ec}22;color:${ec}"><span class="chip-dot" style="background:${ec}"></span>${esc(c.estado)}</span></td>
-            <td><div class="row-actions" onclick="event.stopPropagation()"><button class="icon-btn danger" onclick="TNR.borrarCliente('${c.id}')">🗑</button></div></td>
+            <td data-label="Cliente"><div class="cell-strong">${esc(c.empresa || c.nombre)}</div>${c.empresa && c.nombre ? `<div class="cell-dim">${esc(c.nombre)}</div>` : ''}</td>
+            <td data-label="Rubro">${c.rubro ? `<span class="tag">${esc(c.rubro)}</span>` : '—'}</td>
+            <td data-label="Ciudad" class="cell-dim">${esc(c.ciudad) || '—'}</td>
+            <td data-label="Servicios" class="cell-dim">${c.servicios.length || '—'}</td>
+            <td data-label="Fact. mensual" class="cell-strong">${mensual ? fmtMoney(mensual) : '—'}</td>
+            <td data-label="Producción">${tot ? `<div class="flex"><span class="cell-dim">${pub}/${tot}</span><div class="progress-bar" style="width:60px"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : '—'}</td>
+            <td data-label="Estado"><span class="chip" style="background:${ec}22;color:${ec}"><span class="chip-dot" style="background:${ec}"></span>${esc(c.estado)}</span></td>
+            <td data-label=""><div class="row-actions" onclick="event.stopPropagation()"><button class="icon-btn danger" onclick="TNR.borrarCliente('${c.id}')">🗑</button></div></td>
           </tr>`;
         }).join('')}</tbody></table></div>`
         : emptyState('★', 'Sin clientes', 'Cargá tu primer cliente o convertí un prospecto ganado.', 'TNR.nuevoCliente()')}
@@ -607,9 +607,9 @@
       const tot = c.contenidos.length, pub = c.contenidos.filter(x => x.estado === 'Publicado').length, pend = tot - pub;
       const pct = tot ? Math.round(pub / tot * 100) : 0;
       body.innerHTML = `
-        <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-          ${kpi('Contratados', tot, '#5b8cff', '')}${kpi('Publicados', pub, '#3ecf8e', '')}
-          ${kpi('Pendientes', pend, '#f59e42', '')}${kpi('Avance', pct + '%', '#38bdf8', '')}
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:16px">
+          ${kpi('Contratados', tot, '#1466bd', '')}${kpi('Publicados', pub, '#3ecf8e', '')}
+          ${kpi('Pendientes', pend, '#f59e42', '')}${kpi('Avance', pct + '%', '#1C9FE2', '')}
         </div>
         <div class="progress-bar" style="height:10px;margin-bottom:16px"><div class="progress-fill" style="width:${pct}%"></div></div>
         <div class="flex" style="justify-content:space-between;margin-bottom:12px"><strong style="font-size:13px">Calendario de contenido</strong>
@@ -632,14 +632,14 @@
       const total = c.facturacion.reduce((a, f) => a + f.monto, 0);
       const cobrado = c.facturacion.filter(f => f.pagado).reduce((a, f) => a + f.monto, 0);
       body.innerHTML = `
-        <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
-          ${kpi('Facturado', fmtMoney(total), '#5b8cff', '')}${kpi('Cobrado', fmtMoney(cobrado), '#3ecf8e', '')}${kpi('Pendiente', fmtMoney(total - cobrado), '#f59e42', '')}
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px">
+          ${kpi('Facturado', fmtMoney(total), '#1466bd', '')}${kpi('Cobrado', fmtMoney(cobrado), '#3ecf8e', '')}${kpi('Pendiente', fmtMoney(total - cobrado), '#f59e42', '')}
         </div>
         <div class="flex" style="justify-content:flex-end;margin-bottom:12px"><button class="btn-secondary" style="padding:6px 12px" id="btnAddFc">＋ Concepto</button></div>
         ${c.facturacion.length ? `<div class="table-wrap"><table><thead><tr><th>Concepto</th><th>Fecha</th><th>Monto</th><th>Estado</th></tr></thead>
           <tbody>${c.facturacion.map(f => `<tr onclick="TNR.toggleFc('${c.id}','${f.id}')">
-            <td>${esc(f.concepto)}</td><td class="cell-dim">${fmtDate(f.fecha)}</td><td class="cell-strong">${fmtMoney(f.monto)}</td>
-            <td>${f.pagado ? '<span class="chip" style="background:#3ecf8e22;color:#3ecf8e"><span class="chip-dot" style="background:#3ecf8e"></span>Pagado</span>' : '<span class="chip" style="background:#f59e4222;color:#f59e42"><span class="chip-dot" style="background:#f59e42"></span>Pendiente</span>'}</td>
+            <td data-label="Concepto">${esc(f.concepto)}</td><td data-label="Fecha" class="cell-dim">${fmtDate(f.fecha)}</td><td data-label="Monto" class="cell-strong">${fmtMoney(f.monto)}</td>
+            <td data-label="Estado">${f.pagado ? '<span class="chip" style="background:#3ecf8e22;color:#3ecf8e"><span class="chip-dot" style="background:#3ecf8e"></span>Pagado</span>' : '<span class="chip" style="background:#f59e4222;color:#f59e42"><span class="chip-dot" style="background:#f59e42"></span>Pendiente</span>'}</td>
           </tr>`).join('')}</tbody></table></div><div class="muted mt-12" style="font-size:12px">Click en una fila para marcar como pagado/pendiente.</div>`
         : '<div class="muted" style="font-size:13px">Sin facturación registrada.</div>'}`;
       $('#btnAddFc').onclick = () => {
@@ -680,10 +680,10 @@
           const d = daysUntil(t.fecha);
           const venc = t.fecha ? (d < 0 && t.estado !== 'Finalizada' ? `<span class="tag" style="color:#ff5d6c">${fmtDate(t.fecha)}</span>` : fmtDate(t.fecha)) : '<span class="cell-dim">—</span>';
           return `<tr onclick="TNR.editarTarea('${t.id}')">
-            <td><div class="cell-strong">${esc(t.titulo)}</div>${t.observaciones ? `<div class="cell-dim">${esc(t.observaciones)}</div>` : ''}</td>
-            <td class="cell-dim">${esc(t.responsable) || '—'}</td><td>${venc}</td>
-            <td>${prioridadChip(t.prioridad)}</td><td>${tareaChip(t.estado)}</td>
-            <td><div class="row-actions" onclick="event.stopPropagation()">
+            <td data-label="Tarea"><div class="cell-strong">${esc(t.titulo)}</div>${t.observaciones ? `<div class="cell-dim">${esc(t.observaciones)}</div>` : ''}</td>
+            <td data-label="Responsable" class="cell-dim">${esc(t.responsable) || '—'}</td><td data-label="Vence">${venc}</td>
+            <td data-label="Prioridad">${prioridadChip(t.prioridad)}</td><td data-label="Estado">${tareaChip(t.estado)}</td>
+            <td data-label=""><div class="row-actions" onclick="event.stopPropagation()">
               ${t.estado !== 'Finalizada' ? `<button class="icon-btn" title="Finalizar" onclick="TNR.finalizarTarea('${t.id}')">✓</button>` : ''}
               <button class="icon-btn danger" onclick="TNR.borrarTarea('${t.id}')">🗑</button></div></td>
           </tr>`;
@@ -770,7 +770,7 @@
     view.innerHTML = `
       <div class="view-head"><div><h1>Búsqueda: "${esc(searchTerm)}"</h1><div class="sub">${ps.length} prospectos · ${cs.length} clientes</div></div></div>
       ${ps.length ? `<div class="panel-title" style="margin:8px 0">Prospectos</div>${tablaProspectos(ps)}` : ''}
-      ${cs.length ? `<div class="panel-title" style="margin:20px 0 8px">Clientes</div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Rubro</th><th>Ciudad</th><th>Estado</th></tr></thead><tbody>${cs.map(c => `<tr onclick="TNR.abrirCliente('${c.id}')"><td class="cell-strong">${esc(c.empresa || c.nombre)}</td><td>${c.rubro ? `<span class="tag">${esc(c.rubro)}</span>` : '—'}</td><td class="cell-dim">${esc(c.ciudad) || '—'}</td><td>${esc(c.estado)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${cs.length ? `<div class="panel-title" style="margin:20px 0 8px">Clientes</div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Rubro</th><th>Ciudad</th><th>Estado</th></tr></thead><tbody>${cs.map(c => `<tr onclick="TNR.abrirCliente('${c.id}')"><td data-label="Cliente" class="cell-strong">${esc(c.empresa || c.nombre)}</td><td data-label="Rubro">${c.rubro ? `<span class="tag">${esc(c.rubro)}</span>` : '—'}</td><td data-label="Ciudad" class="cell-dim">${esc(c.ciudad) || '—'}</td><td data-label="Estado">${esc(c.estado)}</td></tr>`).join('')}</tbody></table></div>` : ''}
       ${!ps.length && !cs.length ? emptyState('⌕', 'Sin resultados', `No se encontró nada para "${esc(searchTerm)}". Probá con un rubro, ciudad, estado o servicio.`) : ''}
     `;
   }
