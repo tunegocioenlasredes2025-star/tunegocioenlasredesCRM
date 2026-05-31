@@ -234,8 +234,31 @@
     Object.keys(cont).forEach(tipo => {
       for (let i = 1; i <= cont[tipo]; i++) c.contenidos.push({ id: uid('CT'), tipo: labels[tipo], titulo: `${labels[tipo]} ${i}`, estado: 'Pendiente', fechaPub: '', servicioItem: item.id });
     });
+    item.detalle = srv.detalle;
     c.facturacion.push({ id: uid('FC'), concepto: srv.nombre, monto: srv.precio, fecha: nowISO(), pagado: false });
     c.historial.unshift({ tipo: 'Servicio', texto: `Contrató: ${srv.nombre} ($${srv.precio.toLocaleString('es-AR')})`, fecha: nowISO() });
+    save(); Cloud.push('clientes', c);
+    return item;
+  }
+
+  // Plan a medida: cantidades libres de carruseles/estáticas/reels + precio
+  function agregarServicioPersonalizado(clienteId, opts) {
+    const c = getCliente(clienteId);
+    if (!c) return;
+    const counts = { carrusel: Math.max(0, parseInt(opts.carrusel, 10) || 0), estatica: Math.max(0, parseInt(opts.estatica, 10) || 0), reel: Math.max(0, parseInt(opts.reel, 10) || 0) };
+    const precio = Math.max(0, parseInt(opts.precio, 10) || 0);
+    const nombre = (opts.nombre || '').trim() || 'Plan a medida';
+    const recurrente = opts.recurrente !== false;
+    const labels = { carrusel: 'Carrusel', estatica: 'Estática', reel: 'Reel' };
+    const plural = { carrusel: 'Carruseles', estatica: 'Estáticas', reel: 'Reels' };
+    const detalle = Object.keys(counts).filter(k => counts[k]).map(k => `${counts[k]} ${counts[k] > 1 ? plural[k] : labels[k]}`).join(' · ') || 'Sin contenidos';
+    const item = { id: uid('SV'), servicioId: 'custom', nombre, cat: 'Gestión de Redes', precio, recurrente, desde: nowISO(), custom: true, detalle };
+    c.servicios.push(item);
+    Object.keys(counts).forEach(tipo => {
+      for (let i = 1; i <= counts[tipo]; i++) c.contenidos.push({ id: uid('CT'), tipo: labels[tipo], titulo: `${labels[tipo]} ${i}`, estado: 'Pendiente', fechaPub: '', servicioItem: item.id });
+    });
+    c.facturacion.push({ id: uid('FC'), concepto: nombre, monto: precio, fecha: nowISO(), pagado: false });
+    c.historial.unshift({ tipo: 'Servicio', texto: `Contrató: ${nombre} — ${detalle} ($${precio.toLocaleString('es-AR')})`, fecha: nowISO() });
     save(); Cloud.push('clientes', c);
     return item;
   }
@@ -332,7 +355,7 @@
     estadoColor: (id) => (ESTADOS_LEAD.find(e => e.id === id) || {}).color || '#8b94a8',
     getProspectos, getProspecto, crearProspecto, actualizarProspecto, eliminarProspecto, agregarHistorial, convertirEnCliente,
     getClientes, getCliente, crearCliente, actualizarCliente, eliminarCliente,
-    agregarServicioCliente, quitarServicioCliente, actualizarContenido, agregarContenido,
+    agregarServicioCliente, agregarServicioPersonalizado, quitarServicioCliente, actualizarContenido, agregarContenido,
     toggleFacturaPagada, agregarFactura, agregarHistorialCliente,
     getTareas, crearTarea, actualizarTarea, eliminarTarea,
     exportar, importar, reset, seedIfEmpty, nowISO,

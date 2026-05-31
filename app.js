@@ -561,7 +561,7 @@
     }
     else if (clienteTab === 'servicios') {
       body.innerHTML = `
-        <div class="flex" style="justify-content:space-between;margin-bottom:14px">
+        <div class="flex" style="justify-content:space-between;margin-bottom:12px">
           <strong style="font-size:13px">Servicios contratados</strong>
           <div class="flex">
             <select id="srvPick" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:8px;font-size:12px">
@@ -570,15 +570,38 @@
             <button class="btn-secondary" style="padding:7px 12px" id="btnAddSrv">＋ Agregar</button>
           </div>
         </div>
+
+        <div class="content-card" style="margin-bottom:16px;border-style:dashed">
+          <div class="cell-strong" style="font-size:13px;margin-bottom:10px">🛠 Armar plan a medida</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px">
+            <div class="field"><label>Nombre</label><input id="cpNombre" placeholder="Ej: Medio plan" /></div>
+            <div class="field"><label>Carruseles</label><input id="cpCar" type="number" min="0" value="0" /></div>
+            <div class="field"><label>Estáticas</label><input id="cpEst" type="number" min="0" value="0" /></div>
+            <div class="field"><label>Reels</label><input id="cpReel" type="number" min="0" value="0" /></div>
+            <div class="field"><label>Precio ($)</label><input id="cpPrecio" type="number" min="0" value="0" /></div>
+          </div>
+          <div class="flex" style="justify-content:space-between;margin-top:12px">
+            <label class="flex" style="font-size:12px;color:var(--text-dim);cursor:pointer"><input type="checkbox" id="cpRec" checked style="width:auto" /> Mensual recurrente</label>
+            <button class="btn-primary" style="padding:8px 16px" id="btnAddCustom">＋ Agregar plan</button>
+          </div>
+        </div>
+
         ${c.servicios.length ? c.servicios.map(s => `
           <div class="content-card" style="margin-bottom:10px">
             <div class="flex" style="justify-content:space-between">
-              <div><div class="cell-strong">${esc(s.nombre)}</div><div class="cell-dim" style="font-size:12px">${esc(s.cat)} · desde ${fmtDate(s.desde)}</div></div>
+              <div><div class="cell-strong">${esc(s.nombre)}${s.custom ? ' <span class="tag" style="color:var(--accent)">a medida</span>' : ''}</div>
+              <div class="cell-dim" style="font-size:12px">${s.detalle ? esc(s.detalle) + ' · ' : ''}${esc(s.cat)} · desde ${fmtDate(s.desde)}</div></div>
               <div class="flex"><span class="cell-strong">${fmtMoney(s.precio)}${s.recurrente ? '<span class="muted" style="font-weight:400">/mes</span>' : ''}</span>
               <button class="icon-btn danger" onclick="TNR.quitarSrv('${c.id}','${s.id}')">🗑</button></div>
             </div></div>`).join('')
-        : '<div class="muted" style="font-size:13px">Sin servicios. Agregá un plan desde el selector.</div>'}`;
+        : '<div class="muted" style="font-size:13px">Sin servicios. Elegí un plan del selector o armá uno a medida.</div>'}`;
       $('#btnAddSrv').onclick = () => { DB.agregarServicioCliente(c.id, $('#srvPick').value); toast('Servicio agregado', 'ok'); abrirCliente(c.id, 'servicios'); };
+      $('#btnAddCustom').onclick = () => {
+        const car = +$('#cpCar').value || 0, est = +$('#cpEst').value || 0, reel = +$('#cpReel').value || 0, precio = +$('#cpPrecio').value || 0;
+        if (car + est + reel === 0) { toast('Poné al menos 1 contenido', 'err'); return; }
+        DB.agregarServicioPersonalizado(c.id, { nombre: $('#cpNombre').value, carrusel: car, estatica: est, reel: reel, precio: precio, recurrente: $('#cpRec').checked });
+        toast('Plan a medida agregado', 'ok'); abrirCliente(c.id, 'servicios');
+      };
     }
     else if (clienteTab === 'produccion') {
       const tot = c.contenidos.length, pub = c.contenidos.filter(x => x.estado === 'Publicado').length, pend = tot - pub;
