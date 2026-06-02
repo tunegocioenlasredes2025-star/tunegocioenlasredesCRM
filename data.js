@@ -130,6 +130,28 @@
     save();
   }
 
+  /* ---------- Migración financiera (modelo viejo -> facturas+pagos) ---------- */
+  // Convierte facturas con { pagado:true } en un pago real, una sola vez por cliente.
+  function migrarFinanzasCliente(c) {
+    let cambiado = false;
+    if (!c.pagos) { c.pagos = []; cambiado = true; }
+    (c.facturacion || []).forEach(f => {
+      if (Object.prototype.hasOwnProperty.call(f, 'pagado')) {
+        if (f.pagado === true) {
+          c.pagos.push({ id: uid('PG'), monto: Math.round(+f.monto || 0), fecha: f.fecha || nowISO(), metodo: 'Otro', observaciones: 'Pago migrado del registro anterior', facturaId: f.id });
+        }
+        delete f.pagado;
+        cambiado = true;
+      }
+      if (f.monto != null) f.monto = Math.round(+f.monto || 0);
+    });
+    return cambiado;
+  }
+  function migrarFinanzas() {
+    (load().clientes || []).forEach(c => { if (migrarFinanzasCliente(c)) { Cloud.push('clientes', c); } });
+    save();
+  }
+
   /* ---------- Inicialización ---------- */
   async function init() {
     load();
@@ -140,6 +162,7 @@
     } else {
       seedIfEmpty(); // datos de ejemplo solo en modo local
     }
+    migrarFinanzas(); // normaliza datos existentes
     return Cloud.enabled;
   }
 
@@ -205,7 +228,7 @@
       nombre: '', empresa: '', rubro: '', ciudad: '', provincia: '', pais: 'Argentina',
       telefono: '', whatsapp: '', email: '', instagram: '', facebook: '', linkedin: '', sitioWeb: '',
       responsable: '', estado: 'Activo', observaciones: '',
-      servicios: [], contenidos: [], facturacion: [], historial: [],
+      servicios: [], contenidos: [], facturacion: [], pagos: [], historial: [],
     }, d);
     if (!c.historial.length) c.historial.push({ tipo: 'Nota', texto: 'Cliente creado', fecha: nowISO() });
     load().clientes.unshift(c);
@@ -235,7 +258,7 @@
       for (let i = 1; i <= cont[tipo]; i++) c.contenidos.push({ id: uid('CT'), tipo: labels[tipo], titulo: `${labels[tipo]} ${i}`, estado: 'Pendiente', fechaPub: '', servicioItem: item.id });
     });
     item.detalle = srv.detalle;
-    c.facturacion.push({ id: uid('FC'), concepto: srv.nombre, monto: srv.precio, fecha: nowISO(), pagado: false });
+    c.facturacion.push({ id: uid('FC'), concepto: srv.nombre, monto: srv.precio, fecha: nowISO(), observaciones: '', origenServicio: item.id });
     c.historial.unshift({ tipo: 'Servicio', texto: `Contrató: ${srv.nombre} ($${srv.precio.toLocaleString('es-AR')})`, fecha: nowISO() });
     save(); Cloud.push('clientes', c);
     return item;
@@ -257,7 +280,7 @@
     Object.keys(counts).forEach(tipo => {
       for (let i = 1; i <= counts[tipo]; i++) c.contenidos.push({ id: uid('CT'), tipo: labels[tipo], titulo: `${labels[tipo]} ${i}`, estado: 'Pendiente', fechaPub: '', servicioItem: item.id });
     });
-    c.facturacion.push({ id: uid('FC'), concepto: nombre, monto: precio, fecha: nowISO(), pagado: false });
+    c.facturacion.push({ id: uid('FC'), concepto: nombre, monto: precio, fecha: nowISO(), observaciones: '', origenServicio: item.id });
     c.historial.unshift({ tipo: 'Servicio', texto: `Contrató: ${nombre} — ${detalle} ($${precio.toLocaleString('es-AR')})`, fecha: nowISO() });
     save(); Cloud.push('clientes', c);
     return item;
@@ -281,17 +304,91 @@
     c.contenidos.push(Object.assign({ id: uid('CT'), tipo: 'Carrusel', titulo: '', estado: 'Pendiente', fechaPub: '' }, d));
     save(); Cloud.push('clientes', c);
   }
-  function toggleFacturaPagada(clienteId, fcId) {
-    const c = getCliente(clienteId);
-    if (!c) return;
-    const f = c.facturacion.find(x => x.id === fcId);
-    if (f) { f.pagado = !f.pagado; save(); Cloud.push('clientes', c); }
-  }
+  /* ----- Facturación (conceptos facturados) ----- */
   function agregarFactura(clienteId, d) {
     const c = getCliente(clienteId);
     if (!c) return;
-    c.facturacion.push(Object.assign({ id: uid('FC'), concepto: '', monto: 0, fecha: nowISO(), pagado: false }, d));
+    const f = Object.assign({ id: uid('FC'), concepto: '', monto: 0, fecha: nowISO(), observaciones: '' }, d);
+    f.monto = Math.round(+f.monto || 0);
+    c.facturacion.push(f);
     save(); Cloud.push('clientes', c);
+    return f;
+  }
+  function actualizarFactura(clienteId, fcId, cambios) {
+    const c = getCliente(clienteId);
+    if (!c) return;
+    const f = c.facturacion.find(x => x.id === fcId);
+    if (!f) return;
+    if (cambios.monto != null) cambios.monto = Math.round(+cambios.monto || 0);
+    Object.assign(f, cambios);
+    save(); Cloud.push('clientes', c);
+    return f;
+  }
+  function eliminarFactura(clienteId, fcId) {
+    const c = getCliente(clienteId);
+    if (!c) return;
+    c.facturacion = c.facturacion.filter(f => f.id !== fcId);
+    // los pagos vinculados a esa factura quedan como pagos generales
+    (c.pagos || []).forEach(p => { if (p.facturaId === fcId) p.facturaId = ''; });
+    save(); Cloud.push('clientes', c);
+  }
+  function duplicarFactura(clienteId, fcId) {
+    const c = getCliente(clienteId);
+    if (!c) return;
+    const f = c.facturacion.find(x => x.id === fcId);
+    if (!f) return;
+    const copia = Object.assign({}, f, { id: uid('FC'), fecha: nowISO(), origenServicio: undefined });
+    c.facturacion.push(copia);
+    save(); Cloud.push('clientes', c);
+    return copia;
+  }
+
+  /* ----- Pagos recibidos ----- */
+  function registrarPago(clienteId, d) {
+    const c = getCliente(clienteId);
+    if (!c) return;
+    if (!c.pagos) c.pagos = [];
+    const p = Object.assign({ id: uid('PG'), monto: 0, fecha: nowISO(), metodo: 'Transferencia', observaciones: '', facturaId: '' }, d);
+    p.monto = Math.round(+p.monto || 0);
+    c.pagos.unshift(p);
+    c.historial.unshift({ tipo: 'Pago', texto: `Pago recibido: $${p.monto.toLocaleString('es-AR')} (${p.metodo})`, fecha: nowISO() });
+    save(); Cloud.push('clientes', c);
+    return p;
+  }
+  function actualizarPago(clienteId, pagoId, cambios) {
+    const c = getCliente(clienteId);
+    if (!c || !c.pagos) return;
+    const p = c.pagos.find(x => x.id === pagoId);
+    if (!p) return;
+    if (cambios.monto != null) cambios.monto = Math.round(+cambios.monto || 0);
+    Object.assign(p, cambios);
+    save(); Cloud.push('clientes', c);
+    return p;
+  }
+  function eliminarPago(clienteId, pagoId) {
+    const c = getCliente(clienteId);
+    if (!c || !c.pagos) return;
+    c.pagos = c.pagos.filter(p => p.id !== pagoId);
+    save(); Cloud.push('clientes', c);
+  }
+
+  // Resumen financiero de un cliente (fuente única de la verdad)
+  function finanzasCliente(c) {
+    if (!c) return { facturado: 0, cobrado: 0, saldo: 0, estado: 'Al día', color: '#3ecf8e' };
+    const facturado = (c.facturacion || []).reduce((a, f) => a + (Math.round(+f.monto) || 0), 0);
+    const cobrado = (c.pagos || []).reduce((a, p) => a + (Math.round(+p.monto) || 0), 0);
+    const saldo = facturado - cobrado;
+    let estado = 'Al día', color = '#3ecf8e';
+    if (saldo > 0) {
+      // Antigüedad de la factura más vieja (para detectar deuda vencida)
+      const fechas = (c.facturacion || []).map(f => f.fecha).filter(Boolean).sort();
+      let antig = null;
+      if (fechas.length) antig = Math.round((Date.now() - new Date(fechas[0]).getTime()) / 86400000);
+      if (antig != null && antig > 30) { estado = 'Vencido'; color = '#ff5d6c'; }
+      else if (cobrado > 0) { estado = 'Pago parcial'; color = '#f5c451'; }
+      else { estado = 'Pendiente'; color = '#f59e42'; }
+    }
+    return { facturado, cobrado, saldo, estado, color };
   }
   function agregarHistorialCliente(id, tipo, texto) {
     const c = getCliente(id);
@@ -356,7 +453,9 @@
     getProspectos, getProspecto, crearProspecto, actualizarProspecto, eliminarProspecto, agregarHistorial, convertirEnCliente,
     getClientes, getCliente, crearCliente, actualizarCliente, eliminarCliente,
     agregarServicioCliente, agregarServicioPersonalizado, quitarServicioCliente, actualizarContenido, agregarContenido,
-    toggleFacturaPagada, agregarFactura, agregarHistorialCliente,
+    agregarFactura, actualizarFactura, eliminarFactura, duplicarFactura,
+    registrarPago, actualizarPago, eliminarPago, finanzasCliente,
+    agregarHistorialCliente,
     getTareas, crearTarea, actualizarTarea, eliminarTarea,
     exportar, importar, reset, seedIfEmpty, nowISO,
     init, get cloudEnabled() { return Cloud.enabled; }, onRemoteChange: null,

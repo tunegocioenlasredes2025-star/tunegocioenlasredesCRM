@@ -105,13 +105,21 @@
     const contactados = ps.filter(p => p.estado !== 'Prospecto').length;
     const reuniones = count('Reunión Agendada');
     const ganados = count('Ganado');
-    const activos = cs.filter(c => c.estado === 'Activo').length;
-    const inactivos = cs.filter(c => c.estado !== 'Activo').length;
+    const activosList = cs.filter(c => c.estado === 'Activo');
+    const activos = activosList.length;
+    const inactivos = cs.length - activos;
 
-    // Facturación
-    let facMensual = 0, facAnual = 0;
-    cs.forEach(c => c.servicios.forEach(s => { if (s.recurrente) facMensual += s.precio; }));
-    cs.forEach(c => c.facturacion.forEach(f => { facAnual += f.monto; }));
+    // Facturación: SOLO clientes activos (excluye Inactivo/Suspendido/Cancelado/Perdido)
+    let facMensual = 0, totalFacturado = 0, totalCobrado = 0, totalAdeudado = 0;
+    let cAlDia = 0, cConDeuda = 0, cVencidos = 0;
+    activosList.forEach(c => {
+      c.servicios.forEach(s => { if (s.recurrente) facMensual += s.precio; });
+      const f = DB.finanzasCliente(c);
+      totalFacturado += f.facturado;
+      totalCobrado += f.cobrado;
+      if (f.saldo > 0) { totalAdeudado += f.saldo; cConDeuda++; } else { cAlDia++; }
+      if (f.estado === 'Vencido') cVencidos++;
+    });
 
     // Producción
     let pend = 0, proc = 0, pub = 0;
@@ -156,20 +164,33 @@
           </div>
         </div>
         <div class="panel">
-          <div class="panel-title">Clientes & Facturación</div>
-          <div class="kpi-grid" style="margin:0;grid-template-columns:1fr 1fr">
-            ${kpi('Clientes activos', activos, '#3ecf8e', '')}
-            ${kpi('Inactivos', inactivos, '#8b94a8', '')}
-            ${kpi('Fact. mensual', fmtMoney(facMensual), '#f5c451', 'Servicios recurrentes')}
-            ${kpi('Fact. total', fmtMoney(facAnual), '#38bdf8', 'Histórica')}
+          <div class="panel-title">Clientes & Facturación <span class="muted" style="font-weight:400;font-size:11px">solo activos</span></div>
+          <div class="kpi-grid" style="margin:0;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+            ${kpi('Clientes activos', activos, '#3ecf8e', inactivos ? inactivos + ' inactivos' : '')}
+            ${kpi('Fact. mensual', fmtMoney(facMensual), '#f5c451', 'Recurrente')}
+            ${kpi('Total facturado', fmtMoney(totalFacturado), '#1466bd', 'Histórico')}
+            ${kpi('Total cobrado', fmtMoney(totalCobrado), '#3ecf8e', 'Pagos recibidos')}
           </div>
         </div>
       </div>
 
-      <div class="grid-3">
-        ${kpiPanel('Producción de contenido', [
-          ['Pendientes', pend, '#f59e42'], ['En proceso', proc, '#5b8cff'], ['Publicados', pub, '#3ecf8e'],
+      <div class="grid-3" style="margin-bottom:16px">
+        <div class="panel" style="border-color:${totalAdeudado > 0 ? 'var(--orange)' : 'var(--border)'}">
+          <div class="panel-title">💰 Deuda</div>
+          <div class="kpi-grid" style="margin:0;grid-template-columns:1fr">
+            ${kpi('Total adeudado', fmtMoney(totalAdeudado), totalAdeudado > 0 ? '#f59e42' : '#3ecf8e', 'Saldo pendiente de cobro')}
+          </div>
+        </div>
+        ${kpiPanel('Estado de cobranza', [
+          ['Al día', cAlDia, '#3ecf8e'], ['Con deuda', cConDeuda, '#f59e42'], ['Vencidos', cVencidos, '#ff5d6c'],
         ])}
+        ${kpiPanel('Producción de contenido', [
+          ['Pendientes', pend, '#f59e42'], ['En proceso', proc, '#1C9FE2'], ['Publicados', pub, '#3ecf8e'],
+        ])}
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
         <div class="panel">
           <div class="panel-title">Seguimientos próximos</div>
           ${proximosSeguimientos(ps)}
@@ -477,19 +498,18 @@
         <div class="head-actions"><button class="btn-primary" onclick="TNR.nuevoCliente()">＋ Nuevo cliente</button></div>
       </div>
       ${list.length ? `<div class="table-wrap"><table>
-        <thead><tr><th>Cliente</th><th>Rubro</th><th>Ciudad</th><th>Servicios</th><th>Fact. mensual</th><th>Producción</th><th>Estado</th><th></th></tr></thead>
+        <thead><tr><th>Cliente</th><th>Rubro</th><th>Ciudad</th><th>Fact. mensual</th><th>Saldo</th><th>Finanzas</th><th>Estado</th><th></th></tr></thead>
         <tbody>${list.map(c => {
           const mensual = c.servicios.filter(s => s.recurrente).reduce((a, s) => a + s.precio, 0);
-          const tot = c.contenidos.length, pub = c.contenidos.filter(x => x.estado === 'Publicado').length;
-          const pct = tot ? Math.round(pub / tot * 100) : 0;
+          const fin = DB.finanzasCliente(c);
           const ec = c.estado === 'Activo' ? '#3ecf8e' : '#8b94a8';
           return `<tr onclick="TNR.abrirCliente('${c.id}')">
             <td data-label="Cliente"><div class="cell-strong">${esc(c.empresa || c.nombre)}</div>${c.empresa && c.nombre ? `<div class="cell-dim">${esc(c.nombre)}</div>` : ''}</td>
             <td data-label="Rubro">${c.rubro ? `<span class="tag">${esc(c.rubro)}</span>` : '—'}</td>
             <td data-label="Ciudad" class="cell-dim">${esc(c.ciudad) || '—'}</td>
-            <td data-label="Servicios" class="cell-dim">${c.servicios.length || '—'}</td>
             <td data-label="Fact. mensual" class="cell-strong">${mensual ? fmtMoney(mensual) : '—'}</td>
-            <td data-label="Producción">${tot ? `<div class="flex"><span class="cell-dim">${pub}/${tot}</span><div class="progress-bar" style="width:60px"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : '—'}</td>
+            <td data-label="Saldo" class="cell-strong" style="color:${fin.saldo > 0 ? fin.color : 'var(--text-dim)'}">${fin.saldo > 0 ? fmtMoney(fin.saldo) : '—'}</td>
+            <td data-label="Finanzas"><span class="chip" style="background:${fin.color}22;color:${fin.color}"><span class="chip-dot" style="background:${fin.color}"></span>${fin.estado}</span></td>
             <td data-label="Estado"><span class="chip" style="background:${ec}22;color:${ec}"><span class="chip-dot" style="background:${ec}"></span>${esc(c.estado)}</span></td>
             <td data-label=""><div class="row-actions" onclick="event.stopPropagation()"><button class="icon-btn danger" onclick="TNR.borrarCliente('${c.id}')">🗑</button></div></td>
           </tr>`;
@@ -505,7 +525,7 @@
       ${f('nombre', 'Nombre del contacto')}${f('empresa', 'Empresa')}${f('rubro', 'Rubro')}${f('ciudad', 'Ciudad')}
       ${f('provincia', 'Provincia')}${f('pais', 'País')}${f('telefono', 'Teléfono', 'tel')}${f('whatsapp', 'WhatsApp', 'tel')}
       ${f('email', 'Email', 'email')}${f('instagram', 'Instagram')}${f('sitioWeb', 'Sitio web')}${f('responsable', 'Responsable')}
-      <div class="field"><label>Estado</label><select name="estado"><option ${c.estado === 'Activo' ? 'selected' : ''}>Activo</option><option ${c.estado === 'Inactivo' ? 'selected' : ''}>Inactivo</option></select></div>
+      <div class="field"><label>Estado</label><select name="estado">${['Activo', 'Inactivo', 'Suspendido', 'Cancelado', 'Perdido'].map(e => `<option ${c.estado === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
       <div class="field full"><label>Observaciones</label><textarea name="observaciones">${esc(c.observaciones || '')}</textarea></div>
     </div><div class="form-foot"><button type="button" class="btn-secondary" onclick="TNR.cerrar()">Cancelar</button><button type="submit" class="btn-primary">${c.id ? 'Guardar' : 'Crear cliente'}</button></div></form>`;
   }
@@ -629,24 +649,52 @@
       };
     }
     else if (clienteTab === 'facturacion') {
-      const total = c.facturacion.reduce((a, f) => a + f.monto, 0);
-      const cobrado = c.facturacion.filter(f => f.pagado).reduce((a, f) => a + f.monto, 0);
+      const fin = DB.finanzasCliente(c);
+      const pagos = c.pagos || [];
       body.innerHTML = `
-        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px">
-          ${kpi('Facturado', fmtMoney(total), '#1466bd', '')}${kpi('Cobrado', fmtMoney(cobrado), '#3ecf8e', '')}${kpi('Pendiente', fmtMoney(total - cobrado), '#f59e42', '')}
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:14px">
+          ${kpi('Facturado', fmtMoney(fin.facturado), '#1466bd', '')}
+          ${kpi('Cobrado', fmtMoney(fin.cobrado), '#3ecf8e', '')}
+          ${kpi('Saldo', fmtMoney(fin.saldo), fin.color, fin.saldo > 0 ? 'Adeudado' : 'Sin deuda')}
         </div>
-        <div class="flex" style="justify-content:flex-end;margin-bottom:12px"><button class="btn-secondary" style="padding:6px 12px" id="btnAddFc">＋ Concepto</button></div>
-        ${c.facturacion.length ? `<div class="table-wrap"><table><thead><tr><th>Concepto</th><th>Fecha</th><th>Monto</th><th>Estado</th></tr></thead>
-          <tbody>${c.facturacion.map(f => `<tr onclick="TNR.toggleFc('${c.id}','${f.id}')">
-            <td data-label="Concepto">${esc(f.concepto)}</td><td data-label="Fecha" class="cell-dim">${fmtDate(f.fecha)}</td><td data-label="Monto" class="cell-strong">${fmtMoney(f.monto)}</td>
-            <td data-label="Estado">${f.pagado ? '<span class="chip" style="background:#3ecf8e22;color:#3ecf8e"><span class="chip-dot" style="background:#3ecf8e"></span>Pagado</span>' : '<span class="chip" style="background:#f59e4222;color:#f59e42"><span class="chip-dot" style="background:#f59e42"></span>Pendiente</span>'}</td>
-          </tr>`).join('')}</tbody></table></div><div class="muted mt-12" style="font-size:12px">Click en una fila para marcar como pagado/pendiente.</div>`
-        : '<div class="muted" style="font-size:13px">Sin facturación registrada.</div>'}`;
-      $('#btnAddFc').onclick = () => {
-        const concepto = prompt('Concepto:'); if (!concepto) return;
-        const monto = parseFloat(prompt('Monto:') || '0') || 0;
-        DB.agregarFactura(c.id, { concepto, monto }); abrirCliente(c.id, 'facturacion');
-      };
+        <div class="flex gap-wrap" style="justify-content:space-between;margin-bottom:16px">
+          <span class="chip" style="background:${fin.color}22;color:${fin.color}"><span class="chip-dot" style="background:${fin.color}"></span>${fin.estado}</span>
+          <div class="flex gap-wrap">
+            <button class="btn-secondary" style="padding:7px 12px" id="btnAddFc">＋ Concepto facturado</button>
+            <button class="btn-primary" style="padding:7px 12px" id="btnAddPago">＋ Registrar pago</button>
+          </div>
+        </div>
+
+        <div class="panel-title" style="font-size:13px;margin-bottom:8px">Historial de facturación</div>
+        ${c.facturacion.length ? `<div class="table-wrap" style="margin-bottom:20px"><table><thead><tr><th>Concepto</th><th>Fecha</th><th>Monto</th><th>Observaciones</th><th></th></tr></thead>
+          <tbody>${c.facturacion.map(f => `<tr>
+            <td data-label="Concepto" class="cell-strong">${esc(f.concepto || '—')}</td>
+            <td data-label="Fecha" class="cell-dim">${fmtDate(f.fecha)}</td>
+            <td data-label="Monto" class="cell-strong">${fmtMoney(f.monto)}</td>
+            <td data-label="Obs." class="cell-dim">${esc(f.observaciones || '—')}</td>
+            <td data-label=""><div class="row-actions">
+              <button class="icon-btn" title="Editar" onclick="TNR.editarFactura('${c.id}','${f.id}')">✎</button>
+              <button class="icon-btn" title="Duplicar" onclick="TNR.duplicarFactura('${c.id}','${f.id}')">⧉</button>
+              <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarFactura('${c.id}','${f.id}')">🗑</button>
+            </div></td>
+          </tr>`).join('')}</tbody></table></div>`
+        : '<div class="muted" style="font-size:13px;margin-bottom:20px">Sin conceptos facturados.</div>'}
+
+        <div class="panel-title" style="font-size:13px;margin-bottom:8px">Historial de pagos</div>
+        ${pagos.length ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Monto</th><th>Método</th><th>Observaciones</th><th></th></tr></thead>
+          <tbody>${pagos.map(p => `<tr>
+            <td data-label="Fecha" class="cell-dim">${fmtDate(p.fecha)}</td>
+            <td data-label="Monto" class="cell-strong" style="color:#3ecf8e">${fmtMoney(p.monto)}</td>
+            <td data-label="Método"><span class="tag">${esc(p.metodo)}</span></td>
+            <td data-label="Obs." class="cell-dim">${esc(p.observaciones || '—')}</td>
+            <td data-label=""><div class="row-actions">
+              <button class="icon-btn" title="Editar" onclick="TNR.editarPago('${c.id}','${p.id}')">✎</button>
+              <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarPago('${c.id}','${p.id}')">🗑</button>
+            </div></td>
+          </tr>`).join('')}</tbody></table></div>`
+        : '<div class="muted" style="font-size:13px">Sin pagos registrados. Usá “Registrar pago”.</div>'}`;
+      $('#btnAddFc').onclick = () => formFactura(c.id);
+      $('#btnAddPago').onclick = () => formPago(c.id);
     }
     else if (clienteTab === 'historial') {
       body.innerHTML = `
@@ -658,6 +706,56 @@
       $('#cBtnNote').onclick = add;
       $('#cNoteText').onkeydown = e => { if (e.key === 'Enter') add(); };
     }
+  }
+
+  /* ---------- Formularios financieros ---------- */
+  function formFactura(clienteId, fcId) {
+    const c = DB.getCliente(clienteId);
+    const f = fcId ? c.facturacion.find(x => x.id === fcId) : null;
+    openModal(fcId ? 'Editar concepto facturado' : 'Nuevo concepto facturado', `
+      <form id="formFc"><div class="form-grid">
+        <div class="field full"><label>Concepto / Servicio</label><input name="concepto" value="${esc(f ? f.concepto : '')}" placeholder="Ej: Plan Básico — Junio" /></div>
+        <div class="field"><label>Importe ($)</label><input name="monto" type="number" min="0" step="1" value="${f ? f.monto : ''}" /></div>
+        <div class="field"><label>Fecha</label><input name="fecha" type="date" value="${f ? (f.fecha || '').slice(0, 10) : todayStr()}" /></div>
+        <div class="field full"><label>Observaciones</label><textarea name="observaciones">${esc(f ? (f.observaciones || '') : '')}</textarea></div>
+      </div><div class="form-foot">
+        <button type="button" class="btn-secondary" onclick="TNR.volverCliente('${clienteId}','facturacion')">Cancelar</button>
+        <button type="submit" class="btn-primary">${fcId ? 'Guardar cambios' : 'Agregar'}</button>
+      </div></form>`);
+    $('#formFc').onsubmit = (e) => {
+      e.preventDefault();
+      const d = readForm('formFc');
+      if (!d.concepto && !(+d.monto)) { toast('Completá concepto e importe', 'err'); return; }
+      const datos = { concepto: d.concepto, monto: +d.monto || 0, fecha: d.fecha, observaciones: d.observaciones };
+      if (fcId) DB.actualizarFactura(clienteId, fcId, datos); else DB.agregarFactura(clienteId, datos);
+      toast('Facturación guardada', 'ok'); abrirCliente(clienteId, 'facturacion');
+    };
+  }
+
+  function formPago(clienteId, pagoId) {
+    const c = DB.getCliente(clienteId);
+    const p = pagoId ? (c.pagos || []).find(x => x.id === pagoId) : null;
+    const fin = DB.finanzasCliente(c);
+    const metodos = ['Efectivo', 'Transferencia', 'Mercado Pago', 'Tarjeta', 'Otro'];
+    openModal(pagoId ? 'Editar pago' : 'Registrar pago', `
+      <form id="formPg"><div class="form-grid">
+        <div class="field"><label>Monto ($)</label><input name="monto" type="number" min="0" step="1" value="${p ? p.monto : ''}" /></div>
+        <div class="field"><label>Fecha</label><input name="fecha" type="date" value="${p ? (p.fecha || '').slice(0, 10) : todayStr()}" /></div>
+        <div class="field"><label>Método</label><select name="metodo">${metodos.map(m => `<option ${p && p.metodo === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+        <div class="field"><label>Saldo actual</label><div style="font-size:15px;font-weight:700;color:${fin.color};padding:7px 0">${fmtMoney(fin.saldo)}</div></div>
+        <div class="field full"><label>Observaciones</label><textarea name="observaciones">${esc(p ? (p.observaciones || '') : '')}</textarea></div>
+      </div><div class="form-foot">
+        <button type="button" class="btn-secondary" onclick="TNR.volverCliente('${clienteId}','facturacion')">Cancelar</button>
+        <button type="submit" class="btn-primary">${pagoId ? 'Guardar cambios' : 'Registrar pago'}</button>
+      </div></form>`);
+    $('#formPg').onsubmit = (e) => {
+      e.preventDefault();
+      const d = readForm('formPg');
+      if (!(+d.monto)) { toast('Ingresá el monto del pago', 'err'); return; }
+      const datos = { monto: +d.monto || 0, fecha: d.fecha, metodo: d.metodo, observaciones: d.observaciones };
+      if (pagoId) DB.actualizarPago(clienteId, pagoId, datos); else DB.registrarPago(clienteId, datos);
+      toast('Pago guardado', 'ok'); abrirCliente(clienteId, 'facturacion');
+    };
   }
 
   /* ============================================================
@@ -732,11 +830,14 @@
       }
     });
     DB.getClientes().forEach(c => {
-      c.facturacion.filter(f => !f.pagado).forEach(f => {
-        out.push({ tipo: 'Cobro', ic: '$', color: '#3ecf8e', titulo: `Cobrar: ${f.concepto}`, meta: `${c.empresa || c.nombre} · ${fmtMoney(f.monto)}`, fecha: f.fecha, d: daysUntil(f.fecha), action: `TNR.abrirCliente('${c.id}','facturacion')` });
-      });
+      if (c.estado !== 'Activo') return; // no cobranzas de clientes inactivos
+      const fin = DB.finanzasCliente(c);
+      if (fin.saldo > 0) {
+        const venc = fin.estado === 'Vencido';
+        out.push({ tipo: 'Cobro', ic: '$', color: venc ? '#ff5d6c' : '#f59e42', titulo: `Cobrar a ${c.empresa || c.nombre}`, meta: `${fin.estado} · adeuda ${fmtMoney(fin.saldo)}`, fecha: '', d: venc ? -1 : 0, action: `TNR.abrirCliente('${c.id}','facturacion')` });
+      }
     });
-    return out.sort((a, b) => (a.d ?? 99) - (b.d ?? 99));
+    return out.sort((a, b) => (a.d == null ? 99 : a.d) - (b.d == null ? 99 : b.d));
   }
   function renderNotificaciones() {
     const list = buildNotifs();
@@ -744,10 +845,13 @@
       <div class="view-head"><div><h1>Notificaciones</h1><div class="sub">Recordatorios de seguimientos, tareas y cobros</div></div></div>
       ${list.length ? list.map(n => {
         const cls = n.d < 0 ? 'overdue' : n.d === 0 ? 'today' : '';
-        const dtxt = n.d == null ? '' : n.d < 0 ? `Vencido hace ${Math.abs(n.d)}d` : n.d === 0 ? 'Hoy' : `En ${n.d} día${n.d > 1 ? 's' : ''}`;
+        let dtxt;
+        if (n.tipo === 'Cobro') dtxt = n.d < 0 ? 'Vencido' : 'A cobrar';
+        else dtxt = n.d == null ? '' : n.d < 0 ? `Vencido hace ${Math.abs(n.d)}d` : n.d === 0 ? 'Hoy' : `En ${n.d} día${n.d > 1 ? 's' : ''}`;
+        const metaFecha = n.fecha ? ' · ' + fmtDate(n.fecha) : '';
         return `<div class="notif-item ${cls}" style="cursor:pointer" onclick="${n.action}">
           <div class="n-ic" style="background:${n.color}22;color:${n.color}">${n.ic}</div>
-          <div class="n-body"><div class="n-title">${esc(n.titulo)}</div><div class="n-meta">${esc(n.tipo)} · ${esc(n.meta || '')} · ${fmtDate(n.fecha)}</div></div>
+          <div class="n-body"><div class="n-title">${esc(n.titulo)}</div><div class="n-meta">${esc(n.tipo)} · ${esc(n.meta || '')}${metaFecha}</div></div>
           <span class="tag" style="${n.d < 0 ? 'color:#ff5d6c' : n.d === 0 ? 'color:#f5c451' : ''}">${dtxt}</span>
         </div>`;
       }).join('') : emptyState('◔', 'Todo al día', 'No hay seguimientos, tareas ni cobros próximos a vencer.')}
@@ -833,7 +937,12 @@
     nuevoCliente, editarCliente, borrarCliente, abrirCliente,
     quitarSrv: (cid, sid) => { DB.quitarServicioCliente(cid, sid); abrirCliente(cid, 'servicios'); },
     setContEstado: (cid, ctid, v) => { DB.actualizarContenido(cid, ctid, { estado: v }); },
-    toggleFc: (cid, fid) => { DB.toggleFacturaPagada(cid, fid); abrirCliente(cid, 'facturacion'); },
+    volverCliente: (cid, tab) => abrirCliente(cid, tab),
+    editarFactura: (cid, fid) => formFactura(cid, fid),
+    duplicarFactura: (cid, fid) => { DB.duplicarFactura(cid, fid); toast('Concepto duplicado', 'ok'); abrirCliente(cid, 'facturacion'); },
+    borrarFactura: (cid, fid) => { if (!confirm('¿Seguro que deseas eliminar esta facturación?')) return; DB.eliminarFactura(cid, fid); toast('Facturación eliminada'); abrirCliente(cid, 'facturacion'); },
+    editarPago: (cid, pid) => formPago(cid, pid),
+    borrarPago: (cid, pid) => { if (!confirm('¿Seguro que deseas eliminar este pago?')) return; DB.eliminarPago(cid, pid); toast('Pago eliminado'); abrirCliente(cid, 'facturacion'); },
     nuevaTarea, editarTarea, finalizarTarea, borrarTarea,
     filtrarTareas: (f) => { tareaFiltro = f; renderTareas(); },
     cerrar: closeModal,
