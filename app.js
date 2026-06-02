@@ -105,20 +105,25 @@
     const contactados = ps.filter(p => p.estado !== 'Prospecto').length;
     const reuniones = count('Reunión Agendada');
     const ganados = count('Ganado');
-    const activosList = cs.filter(c => c.estado === 'Activo');
-    const activos = activosList.length;
+    const activos = cs.filter(c => c.estado === 'Activo').length;
     const inactivos = cs.length - activos;
 
-    // Facturación: SOLO clientes activos (excluye Inactivo/Suspendido/Cancelado/Perdido)
-    let facMensual = 0, totalFacturado = 0, totalCobrado = 0, totalAdeudado = 0;
-    let cAlDia = 0, cConDeuda = 0, cVencidos = 0;
-    activosList.forEach(c => {
-      c.servicios.forEach(s => { if (s.recurrente) facMensual += s.precio; });
+    // INGRESOS (solo activos): proyección recurrente + facturado/cobrado de activos.
+    // DEUDA (todos los clientes): para no perder de vista lo que te deben.
+    let facMensual = 0, factActivos = 0, cobradoActivos = 0;       // solo activos
+    let factTotal = 0, cobradoTotal = 0, adeudadoTotal = 0;        // todos
+    let cAlDia = 0, cConDeuda = 0, cVencidos = 0;                  // todos
+    cs.forEach(c => {
       const f = DB.finanzasCliente(c);
-      totalFacturado += f.facturado;
-      totalCobrado += f.cobrado;
-      if (f.saldo > 0) { totalAdeudado += f.saldo; cConDeuda++; } else { cAlDia++; }
+      factTotal += f.facturado;
+      cobradoTotal += f.cobrado;
+      if (f.saldo > 0) { adeudadoTotal += f.saldo; cConDeuda++; } else { cAlDia++; }
       if (f.estado === 'Vencido') cVencidos++;
+      if (c.estado === 'Activo') {
+        c.servicios.forEach(s => { if (s.recurrente) facMensual += s.precio; });
+        factActivos += f.facturado;
+        cobradoActivos += f.cobrado;
+      }
     });
 
     // Producción
@@ -164,21 +169,23 @@
           </div>
         </div>
         <div class="panel">
-          <div class="panel-title">Clientes & Facturación <span class="muted" style="font-weight:400;font-size:11px">solo activos</span></div>
+          <div class="panel-title">Ingresos <span class="muted" style="font-weight:400;font-size:11px">solo clientes activos</span></div>
           <div class="kpi-grid" style="margin:0;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
             ${kpi('Clientes activos', activos, '#3ecf8e', inactivos ? inactivos + ' inactivos' : '')}
             ${kpi('Fact. mensual', fmtMoney(facMensual), '#f5c451', 'Recurrente')}
-            ${kpi('Total facturado', fmtMoney(totalFacturado), '#1466bd', 'Histórico')}
-            ${kpi('Total cobrado', fmtMoney(totalCobrado), '#3ecf8e', 'Pagos recibidos')}
+            ${kpi('Facturado activos', fmtMoney(factActivos), '#1466bd', 'Histórico')}
+            ${kpi('Cobrado activos', fmtMoney(cobradoActivos), '#3ecf8e', 'Pagos recibidos')}
           </div>
         </div>
       </div>
 
       <div class="grid-3" style="margin-bottom:16px">
-        <div class="panel" style="border-color:${totalAdeudado > 0 ? 'var(--orange)' : 'var(--border)'}">
-          <div class="panel-title">💰 Deuda</div>
-          <div class="kpi-grid" style="margin:0;grid-template-columns:1fr">
-            ${kpi('Total adeudado', fmtMoney(totalAdeudado), totalAdeudado > 0 ? '#f59e42' : '#3ecf8e', 'Saldo pendiente de cobro')}
+        <div class="panel">
+          <div class="panel-title">Facturación total <span class="muted" style="font-weight:400;font-size:11px">todos los clientes</span></div>
+          <div class="kpi-grid" style="margin:0;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
+            ${kpi('Facturación total', fmtMoney(factTotal), '#7c5cff', 'Todo lo facturado')}
+            ${kpi('Cobrado total', fmtMoney(cobradoTotal), '#3ecf8e', 'Todo lo cobrado')}
+            ${kpi('Adeudado total', fmtMoney(adeudadoTotal), adeudadoTotal > 0 ? '#ff5d6c' : '#3ecf8e', 'Saldo pendiente')}
           </div>
         </div>
         ${kpiPanel('Estado de cobranza', [
