@@ -319,14 +319,9 @@
         ${f('empresa', 'Empresa')}
         ${f('rubro', 'Rubro')}
         ${f('ciudad', 'Ciudad')}
-        ${f('provincia', 'Provincia')}
-        ${f('pais', 'País')}
         ${f('telefono', 'Teléfono', 'tel')}
         ${f('whatsapp', 'WhatsApp', 'tel')}
-        ${f('email', 'Email', 'email')}
         ${f('instagram', 'Instagram')}
-        ${f('facebook', 'Facebook')}
-        ${f('linkedin', 'LinkedIn')}
         ${f('sitioWeb', 'Sitio Web')}
         ${f('responsable', 'Responsable')}
         ${sel('metodoContacto', 'Método de contacto', ['', ...DB.METODOS_CONTACTO])}
