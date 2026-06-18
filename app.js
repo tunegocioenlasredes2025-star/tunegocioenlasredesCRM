@@ -256,8 +256,8 @@
       <div class="view-head">
         <div><h1>Prospectos</h1><div class="sub">CRM de prospectos · ${all.length} en base</div></div>
         <div class="head-actions">
-          <button class="btn-secondary" onclick="TNR.nuevoProspectoChat()">💬 Chat inteligente</button>
-          <button class="btn-primary" onclick="TNR.nuevoProspecto()">＋ Nuevo prospecto</button>
+          <button class="btn-secondary" onclick="TNR.nuevoProspectoChat()">${icon('sparkles')} Chat inteligente</button>
+          <button class="btn-primary" onclick="TNR.nuevoProspecto()">${icon('plus')}Nuevo prospecto</button>
         </div>
       </div>
 
@@ -270,7 +270,7 @@
         <span class="result-count">${list.length} resultado${list.length !== 1 ? 's' : ''}</span>
       </div>
 
-      ${list.length ? tablaProspectos(list) : emptyState('◎', 'Sin prospectos', 'Cargá tu primer prospecto con el formulario o con el chat inteligente.', 'TNR.nuevoProspecto()')}
+      ${list.length ? tablaProspectos(list) : emptyState('target', 'Sin prospectos', 'Cargá tu primer prospecto con el formulario o con el chat inteligente.', 'TNR.nuevoProspecto()')}
     `;
 
     $$('#view .filters select').forEach(s => s.onchange = () => { pFilters[s.dataset.f] = s.value; renderProspectos(); });
@@ -294,9 +294,9 @@
           <td data-label="Método" class="cell-dim">${esc(p.metodoContacto) || '—'}</td>
           <td data-label="Seguimiento">${segTag}</td>
           <td data-label=""><div class="row-actions" onclick="event.stopPropagation()">
-            ${p.whatsapp ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="https://wa.me/${waNum(p.whatsapp)}">✆</a>` : ''}
-            <button class="icon-btn" title="Editar" onclick="TNR.editarProspecto('${p.id}')">✎</button>
-            <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarProspecto('${p.id}')">🗑</button>
+            ${p.whatsapp ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="https://wa.me/${waNum(p.whatsapp)}">${icon('whatsapp')}</a>` : ''}
+            <button class="icon-btn" title="Editar" onclick="TNR.editarProspecto('${p.id}')">${icon('edit')}</button>
+            <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarProspecto('${p.id}')">${icon('trash')}</button>
           </div></td>
         </tr>`;
       }).join('')}</tbody>
@@ -381,7 +381,7 @@
         <textarea class="chat-input" id="chatInput" placeholder="Escribí en lenguaje natural lo que sabés del prospecto…"></textarea>
         <div class="flex" style="justify-content:space-between;margin-top:12px">
           <span class="muted" style="font-size:12px">El sistema interpreta el texto y completa los campos automáticamente.</span>
-          <button class="btn-primary" id="btnParse">Interpretar →</button>
+          <button class="btn-primary" id="btnParse">Interpretar ${icon('arrow-right')}</button>
         </div>
       </div>
       <div style="margin-top:16px"><div class="muted" style="font-size:12px;margin-bottom:8px">Ejemplos (click para probar):</div>
@@ -412,7 +412,7 @@
       </div>
       <div class="form-foot">
         <button class="btn-secondary" onclick="TNR.revisarParse()">Revisar / editar campos</button>
-        <button class="btn-primary" id="btnConfirmParse">✓ Crear prospecto</button>
+        <button class="btn-primary" id="btnConfirmParse">${icon('check')} Crear prospecto</button>
       </div>`;
     doParse._last = parsed;
     $('#btnConfirmParse').onclick = () => {
@@ -437,8 +437,8 @@
           <select id="estadoQuick" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:12px">
             ${DB.ESTADOS_LEAD.map(e => `<option ${e.id === p.estado ? 'selected' : ''}>${e.id}</option>`).join('')}
           </select>
-          ${p.whatsapp ? `<a class="btn-secondary" target="_blank" href="https://wa.me/${waNum(p.whatsapp)}" style="padding:6px 12px">✆ WhatsApp</a>` : ''}
-          <button class="btn-secondary" style="padding:6px 12px" onclick="TNR.editarProspecto('${p.id}')">✎ Editar</button>
+          ${p.whatsapp ? `<a class="btn-secondary" target="_blank" href="https://wa.me/${waNum(p.whatsapp)}" style="padding:6px 12px">${icon('whatsapp')} WhatsApp</a>` : ''}
+          <button class="btn-secondary" style="padding:6px 12px" onclick="TNR.editarProspecto('${p.id}')">${icon('edit')} Editar</button>
         </div>
       </div>
       <div class="form-grid">
@@ -459,12 +459,12 @@
       <div class="divider"></div>
       <div class="flex" style="justify-content:space-between;margin-bottom:8px">
         <strong style="font-size:13px">Historial</strong>
-        <button class="btn-secondary" style="padding:5px 10px;font-size:12px" onclick="TNR.convertirCliente('${p.id}')">★ Convertir en cliente</button>
+        <button class="btn-secondary" style="padding:5px 10px;font-size:12px" onclick="TNR.convertirCliente('${p.id}')">${icon('star')} Convertir en cliente</button>
       </div>
       <div class="add-note">
         <select id="noteTipo"><option>Nota</option><option>Llamada</option><option>Mensaje</option><option>Reunión</option><option>Seguimiento</option></select>
         <input id="noteText" placeholder="Agregar al historial…" />
-        <button class="btn-secondary" id="btnNote" style="padding:8px 14px">＋</button>
+        <button class="btn-secondary" id="btnNote" style="padding:8px 14px">${icon('plus')}</button>
       </div>
       <div class="timeline mt-12">${(p.historial || []).map(h => `
         <div class="tl-item"><div class="tl-dot"></div><div class="tl-content">
@@ -497,7 +497,7 @@
     view.innerHTML = `
       <div class="view-head">
         <div><h1>Clientes</h1><div class="sub">${list.filter(c => c.estado === 'Activo').length} activos · ${list.length} totales</div></div>
-        <div class="head-actions"><button class="btn-primary" onclick="TNR.nuevoCliente()">＋ Nuevo cliente</button></div>
+        <div class="head-actions"><button class="btn-primary" onclick="TNR.nuevoCliente()">${icon('plus')}Nuevo cliente</button></div>
       </div>
       ${list.length ? `<div class="table-wrap"><table>
         <thead><tr><th>Cliente</th><th>Rubro</th><th>Ciudad</th><th>Fact. mensual</th><th>Saldo</th><th>Finanzas</th><th>Estado</th><th></th></tr></thead>
@@ -513,10 +513,10 @@
             <td data-label="Saldo" class="cell-strong" style="color:${fin.saldo > 0 ? fin.color : 'var(--text-dim)'}">${fin.saldo > 0 ? fmtMoney(fin.saldo) : '—'}</td>
             <td data-label="Finanzas"><span class="chip" style="background:${fin.color}22;color:${fin.color}"><span class="chip-dot" style="background:${fin.color}"></span>${fin.estado}</span></td>
             <td data-label="Estado"><span class="chip" style="background:${ec}22;color:${ec}"><span class="chip-dot" style="background:${ec}"></span>${esc(c.estado)}</span></td>
-            <td data-label=""><div class="row-actions" onclick="event.stopPropagation()"><button class="icon-btn danger" onclick="TNR.borrarCliente('${c.id}')">🗑</button></div></td>
+            <td data-label=""><div class="row-actions" onclick="event.stopPropagation()"><button class="icon-btn danger" onclick="TNR.borrarCliente('${c.id}')">${icon('trash')}</button></div></td>
           </tr>`;
         }).join('')}</tbody></table></div>`
-        : emptyState('★', 'Sin clientes', 'Cargá tu primer cliente o convertí un prospecto ganado.', 'TNR.nuevoCliente()')}
+        : emptyState('users', 'Sin clientes', 'Cargá tu primer cliente o convertí un prospecto ganado.', 'TNR.nuevoCliente()')}
     `;
   }
 
@@ -568,8 +568,8 @@
       const fila = (l, v) => `<div class="field"><label>${l}</label><div style="font-size:13px;padding:4px 0">${v || '<span class="cell-dim">—</span>'}</div></div>`;
       body.innerHTML = `
         <div class="flex" style="justify-content:flex-end;margin-bottom:14px">
-          ${c.whatsapp ? `<a class="btn-secondary" target="_blank" href="https://wa.me/${waNum(c.whatsapp)}" style="padding:6px 12px">✆ WhatsApp</a>` : ''}
-          <button class="btn-secondary" style="padding:6px 12px" onclick="TNR.editarCliente('${c.id}')">✎ Editar</button>
+          ${c.whatsapp ? `<a class="btn-secondary" target="_blank" href="https://wa.me/${waNum(c.whatsapp)}" style="padding:6px 12px">${icon('whatsapp')} WhatsApp</a>` : ''}
+          <button class="btn-secondary" style="padding:6px 12px" onclick="TNR.editarCliente('${c.id}')">${icon('edit')} Editar</button>
         </div>
         <div class="form-grid">
           ${fila('Contacto', esc(c.nombre))}${fila('Empresa', esc(c.empresa))}${fila('Rubro', esc(c.rubro))}
@@ -589,12 +589,12 @@
             <select id="srvPick" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:8px;font-size:12px">
               ${DB.SERVICIOS.map(s => `<option value="${s.id}">${s.nombre} — ${fmtMoney(s.precio)}${s.recurrente ? '/mes' : ''}</option>`).join('')}
             </select>
-            <button class="btn-secondary" style="padding:7px 12px" id="btnAddSrv">＋ Agregar</button>
+            <button class="btn-secondary" style="padding:7px 12px" id="btnAddSrv">${icon('plus')}Agregar</button>
           </div>
         </div>
 
         <div class="content-card" style="margin-bottom:16px;border-style:dashed">
-          <div class="cell-strong" style="font-size:13px;margin-bottom:10px">🛠 Armar plan a medida</div>
+          <div class="cell-strong flex" style="font-size:13px;margin-bottom:10px;gap:7px">${icon('sliders')} Armar plan a medida</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px">
             <div class="field"><label>Nombre</label><input id="cpNombre" placeholder="Ej: Medio plan" /></div>
             <div class="field"><label>Carruseles</label><input id="cpCar" type="number" min="0" value="0" /></div>
@@ -604,7 +604,7 @@
           </div>
           <div class="flex" style="justify-content:space-between;margin-top:12px">
             <label class="flex" style="font-size:12px;color:var(--text-dim);cursor:pointer"><input type="checkbox" id="cpRec" checked style="width:auto" /> Mensual recurrente</label>
-            <button class="btn-primary" style="padding:8px 16px" id="btnAddCustom">＋ Agregar plan</button>
+            <button class="btn-primary" style="padding:8px 16px" id="btnAddCustom">${icon('plus')}Agregar plan</button>
           </div>
         </div>
 
@@ -614,7 +614,7 @@
               <div><div class="cell-strong">${esc(s.nombre)}${s.custom ? ' <span class="tag" style="color:var(--accent)">a medida</span>' : ''}</div>
               <div class="cell-dim" style="font-size:12px">${s.detalle ? esc(s.detalle) + ' · ' : ''}${esc(s.cat)} · desde ${fmtDate(s.desde)}</div></div>
               <div class="flex"><span class="cell-strong">${fmtMoney(s.precio)}${s.recurrente ? '<span class="muted" style="font-weight:400">/mes</span>' : ''}</span>
-              <button class="icon-btn danger" onclick="TNR.quitarSrv('${c.id}','${s.id}')">🗑</button></div>
+              <button class="icon-btn danger" onclick="TNR.quitarSrv('${c.id}','${s.id}')">${icon('trash')}</button></div>
             </div></div>`).join('')
         : '<div class="muted" style="font-size:13px">Sin servicios. Elegí un plan del selector o armá uno a medida.</div>'}`;
       $('#btnAddSrv').onclick = () => { DB.agregarServicioCliente(c.id, $('#srvPick').value); toast('Servicio agregado', 'ok'); abrirCliente(c.id, 'servicios'); };
@@ -635,7 +635,7 @@
         </div>
         <div class="progress-bar" style="height:10px;margin-bottom:16px"><div class="progress-fill" style="width:${pct}%"></div></div>
         <div class="flex" style="justify-content:space-between;margin-bottom:12px"><strong style="font-size:13px">Calendario de contenido</strong>
-          <button class="btn-secondary" style="padding:6px 12px" id="btnAddCont">＋ Contenido</button></div>
+          <button class="btn-secondary" style="padding:6px 12px" id="btnAddCont">${icon('plus')}Contenido</button></div>
         ${tot ? `<div class="cal-grid">${c.contenidos.map(ct => `
           <div class="content-card">
             <div class="cc-head"><span class="cc-type">${esc(ct.tipo)}</span><span class="cell-dim" style="font-size:11px">${esc(ct.titulo)}</span></div>
@@ -662,8 +662,8 @@
         <div class="flex gap-wrap" style="justify-content:space-between;margin-bottom:16px">
           <span class="chip" style="background:${fin.color}22;color:${fin.color}"><span class="chip-dot" style="background:${fin.color}"></span>${fin.estado}</span>
           <div class="flex gap-wrap">
-            <button class="btn-secondary" style="padding:7px 12px" id="btnAddFc">＋ Concepto facturado</button>
-            <button class="btn-primary" style="padding:7px 12px" id="btnAddPago">＋ Registrar pago</button>
+            <button class="btn-secondary" style="padding:7px 12px" id="btnAddFc">${icon('plus')}Concepto facturado</button>
+            <button class="btn-primary" style="padding:7px 12px" id="btnAddPago">${icon('plus')}Registrar pago</button>
           </div>
         </div>
 
@@ -675,9 +675,9 @@
             <td data-label="Monto" class="cell-strong">${fmtMoney(f.monto)}</td>
             <td data-label="Obs." class="cell-dim">${esc(f.observaciones || '—')}</td>
             <td data-label=""><div class="row-actions">
-              <button class="icon-btn" title="Editar" onclick="TNR.editarFactura('${c.id}','${f.id}')">✎</button>
-              <button class="icon-btn" title="Duplicar" onclick="TNR.duplicarFactura('${c.id}','${f.id}')">⧉</button>
-              <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarFactura('${c.id}','${f.id}')">🗑</button>
+              <button class="icon-btn" title="Editar" onclick="TNR.editarFactura('${c.id}','${f.id}')">${icon('edit')}</button>
+              <button class="icon-btn" title="Duplicar" onclick="TNR.duplicarFactura('${c.id}','${f.id}')">${icon('copy')}</button>
+              <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarFactura('${c.id}','${f.id}')">${icon('trash')}</button>
             </div></td>
           </tr>`).join('')}</tbody></table></div>`
         : '<div class="muted" style="font-size:13px;margin-bottom:20px">Sin conceptos facturados.</div>'}
@@ -690,8 +690,8 @@
             <td data-label="Método"><span class="tag">${esc(p.metodo)}</span></td>
             <td data-label="Obs." class="cell-dim">${esc(p.observaciones || '—')}</td>
             <td data-label=""><div class="row-actions">
-              <button class="icon-btn" title="Editar" onclick="TNR.editarPago('${c.id}','${p.id}')">✎</button>
-              <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarPago('${c.id}','${p.id}')">🗑</button>
+              <button class="icon-btn" title="Editar" onclick="TNR.editarPago('${c.id}','${p.id}')">${icon('edit')}</button>
+              <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarPago('${c.id}','${p.id}')">${icon('trash')}</button>
             </div></td>
           </tr>`).join('')}</tbody></table></div>`
         : '<div class="muted" style="font-size:13px">Sin pagos registrados. Usá “Registrar pago”.</div>'}`;
@@ -701,7 +701,7 @@
     else if (clienteTab === 'historial') {
       body.innerHTML = `
         <div class="add-note"><select id="cNoteTipo"><option>Nota</option><option>Llamada</option><option>Mensaje</option><option>Reunión</option><option>Entrega</option></select>
-        <input id="cNoteText" placeholder="Agregar al historial…" /><button class="btn-secondary" id="cBtnNote" style="padding:8px 14px">＋</button></div>
+        <input id="cNoteText" placeholder="Agregar al historial…" /><button class="btn-secondary" id="cBtnNote" style="padding:8px 14px">${icon('plus')}</button></div>
         <div class="timeline mt-20">${(c.historial || []).map(h => `<div class="tl-item"><div class="tl-dot"></div><div class="tl-content">
           <div class="tl-type">${esc(h.tipo)}</div><div class="tl-text">${esc(h.texto)}</div><div class="tl-date">${fmtDateTime(h.fecha)}</div></div></div>`).join('')}</div>`;
       const add = () => { const t = $('#cNoteText').value.trim(); if (!t) return; DB.agregarHistorialCliente(c.id, $('#cNoteTipo').value, t); abrirCliente(c.id, 'historial'); };
@@ -770,7 +770,7 @@
     view.innerHTML = `
       <div class="view-head">
         <div><h1>Tareas</h1><div class="sub">${DB.getTareas().filter(t => t.estado !== 'Finalizada').length} pendientes</div></div>
-        <div class="head-actions"><button class="btn-primary" onclick="TNR.nuevaTarea()">＋ Nueva tarea</button></div>
+        <div class="head-actions"><button class="btn-primary" onclick="TNR.nuevaTarea()">${icon('plus')}Nueva tarea</button></div>
       </div>
       <div class="filters">
         ${['todas', ...DB.ESTADOS_TAREA].map(f => `<button class="btn-ghost" style="flex:none;${tareaFiltro === f ? 'background:var(--panel-2);color:var(--text);border-color:var(--border-2)' : ''}" onclick="TNR.filtrarTareas('${f}')">${f === 'todas' ? 'Todas' : f}</button>`).join('')}
@@ -784,11 +784,11 @@
             <td data-label="Responsable" class="cell-dim">${esc(t.responsable) || '—'}</td><td data-label="Vence">${venc}</td>
             <td data-label="Prioridad">${prioridadChip(t.prioridad)}</td><td data-label="Estado">${tareaChip(t.estado)}</td>
             <td data-label=""><div class="row-actions" onclick="event.stopPropagation()">
-              ${t.estado !== 'Finalizada' ? `<button class="icon-btn" title="Finalizar" onclick="TNR.finalizarTarea('${t.id}')">✓</button>` : ''}
-              <button class="icon-btn danger" onclick="TNR.borrarTarea('${t.id}')">🗑</button></div></td>
+              ${t.estado !== 'Finalizada' ? `<button class="icon-btn" title="Finalizar" onclick="TNR.finalizarTarea('${t.id}')">${icon('check')}</button>` : ''}
+              <button class="icon-btn danger" onclick="TNR.borrarTarea('${t.id}')">${icon('trash')}</button></div></td>
           </tr>`;
         }).join('')}</tbody></table></div>`
-        : emptyState('✓', 'Sin tareas', 'Creá tareas para organizar seguimientos, entregas y cobros.', 'TNR.nuevaTarea()')}
+        : emptyState('check-square', 'Sin tareas', 'Creá tareas para organizar seguimientos, entregas y cobros.', 'TNR.nuevaTarea()')}
     `;
   }
   function formTarea(t) {
@@ -822,13 +822,13 @@
     DB.getProspectos().forEach(p => {
       if (p.fechaSeguimiento && !['Ganado', 'Perdido'].includes(p.estado)) {
         const d = daysUntil(p.fechaSeguimiento);
-        if (d <= 3) out.push({ tipo: 'Seguimiento', ic: '◔', color: '#5b8cff', titulo: `Seguir a ${p.empresa || p.nombre}`, meta: p.proximaAccion || p.estado, fecha: p.fechaSeguimiento, d, action: `TNR.abrirProspecto('${p.id}')` });
+        if (d <= 3) out.push({ tipo: 'Seguimiento', ic: 'bell', color: '#1C9FE2', titulo: `Seguir a ${p.empresa || p.nombre}`, meta: p.proximaAccion || p.estado, fecha: p.fechaSeguimiento, d, action: `TNR.abrirProspecto('${p.id}')` });
       }
     });
     DB.getTareas().forEach(t => {
       if (t.estado !== 'Finalizada' && t.fecha) {
         const d = daysUntil(t.fecha);
-        if (d <= 3) out.push({ tipo: 'Tarea', ic: '✓', color: '#f59e42', titulo: t.titulo, meta: t.responsable, fecha: t.fecha, d, action: `TNR.editarTarea('${t.id}')` });
+        if (d <= 3) out.push({ tipo: 'Tarea', ic: 'check-square', color: '#f59e42', titulo: t.titulo, meta: t.responsable, fecha: t.fecha, d, action: `TNR.editarTarea('${t.id}')` });
       }
     });
     DB.getClientes().forEach(c => {
@@ -836,7 +836,7 @@
       const fin = DB.finanzasCliente(c);
       if (fin.saldo > 0) {
         const venc = fin.estado === 'Vencido';
-        out.push({ tipo: 'Cobro', ic: '$', color: venc ? '#ff5d6c' : '#f59e42', titulo: `Cobrar a ${c.empresa || c.nombre}`, meta: `${fin.estado} · adeuda ${fmtMoney(fin.saldo)}`, fecha: '', d: venc ? -1 : 0, action: `TNR.abrirCliente('${c.id}','facturacion')` });
+        out.push({ tipo: 'Cobro', ic: 'wallet', color: venc ? '#ff5d6c' : '#f59e42', titulo: `Cobrar a ${c.empresa || c.nombre}`, meta: `${fin.estado} · adeuda ${fmtMoney(fin.saldo)}`, fecha: '', d: venc ? -1 : 0, action: `TNR.abrirCliente('${c.id}','facturacion')` });
       }
     });
     return out.sort((a, b) => (a.d == null ? 99 : a.d) - (b.d == null ? 99 : b.d));
@@ -852,11 +852,11 @@
         else dtxt = n.d == null ? '' : n.d < 0 ? `Vencido hace ${Math.abs(n.d)}d` : n.d === 0 ? 'Hoy' : `En ${n.d} día${n.d > 1 ? 's' : ''}`;
         const metaFecha = n.fecha ? ' · ' + fmtDate(n.fecha) : '';
         return `<div class="notif-item ${cls}" style="cursor:pointer" onclick="${n.action}">
-          <div class="n-ic" style="background:${n.color}22;color:${n.color}">${n.ic}</div>
+          <div class="n-ic" style="background:${n.color}22;color:${n.color}">${icon(n.ic, 18)}</div>
           <div class="n-body"><div class="n-title">${esc(n.titulo)}</div><div class="n-meta">${esc(n.tipo)} · ${esc(n.meta || '')}${metaFecha}</div></div>
           <span class="tag" style="${n.d < 0 ? 'color:#ff5d6c' : n.d === 0 ? 'color:#f5c451' : ''}">${dtxt}</span>
         </div>`;
-      }).join('') : emptyState('◔', 'Todo al día', 'No hay seguimientos, tareas ni cobros próximos a vencer.')}
+      }).join('') : emptyState('bell', 'Todo al día', 'No hay seguimientos, tareas ni cobros próximos a vencer.')}
     `;
   }
   function updateNotifBadge() {
@@ -877,7 +877,7 @@
       <div class="view-head"><div><h1>Búsqueda: "${esc(searchTerm)}"</h1><div class="sub">${ps.length} prospectos · ${cs.length} clientes</div></div></div>
       ${ps.length ? `<div class="panel-title" style="margin:8px 0">Prospectos</div>${tablaProspectos(ps)}` : ''}
       ${cs.length ? `<div class="panel-title" style="margin:20px 0 8px">Clientes</div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Rubro</th><th>Ciudad</th><th>Estado</th></tr></thead><tbody>${cs.map(c => `<tr onclick="TNR.abrirCliente('${c.id}')"><td data-label="Cliente" class="cell-strong">${esc(c.empresa || c.nombre)}</td><td data-label="Rubro">${c.rubro ? `<span class="tag">${esc(c.rubro)}</span>` : '—'}</td><td data-label="Ciudad" class="cell-dim">${esc(c.ciudad) || '—'}</td><td data-label="Estado">${esc(c.estado)}</td></tr>`).join('')}</tbody></table></div>` : ''}
-      ${!ps.length && !cs.length ? emptyState('⌕', 'Sin resultados', `No se encontró nada para "${esc(searchTerm)}". Probá con un rubro, ciudad, estado o servicio.`) : ''}
+      ${!ps.length && !cs.length ? emptyState('search', 'Sin resultados', `No se encontró nada para "${esc(searchTerm)}". Probá con un rubro, ciudad, estado o servicio.`) : ''}
     `;
   }
   $('#globalSearch').addEventListener('input', (e) => {
@@ -889,7 +889,7 @@
      EMPTY STATE
      ============================================================ */
   function emptyState(ic, title, text, action) {
-    return `<div class="empty"><div class="e-ic">${ic}</div><h3>${title}</h3><p>${text}</p>${action ? `<button class="btn-primary" onclick="${action}">＋ Crear</button>` : ''}</div>`;
+    return `<div class="empty"><div class="e-ic">${icon(ic, 40)}</div><h3>${title}</h3><p>${text}</p>${action ? `<button class="btn-primary" onclick="${action}">${icon('plus')} Crear</button>` : ''}</div>`;
   }
 
   /* ============================================================
@@ -959,6 +959,7 @@
   }
 
   /* ---------- Init ---------- */
+  if (window.Icons) Icons.paintStatic(); // iconos estáticos del sidebar/topbar/modal
   DB.onRemoteChange = () => { searchTerm ? renderSearch() : render(); };
   setView('dashboard'); // render inmediato con datos locales/cacheados
   DB.init().then((online) => {
