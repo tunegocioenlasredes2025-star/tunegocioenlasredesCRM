@@ -883,7 +883,10 @@
     }).join('');
 
     view.innerHTML = `
-      <div class="view-head"><div><h1>Notificaciones</h1><div class="sub">Alertas de inactividad y recordatorios</div></div></div>
+      <div class="view-head">
+        <div><h1>Notificaciones</h1><div class="sub">Alertas de inactividad y recordatorios</div></div>
+        <div class="head-actions"><button class="btn-secondary" onclick="TNR.activarNotif()">${icon('bell')}<span class="btn-label"> Activar en este dispositivo</span></button></div>
+      </div>
 
       <div class="panel-title" style="margin:2px 0 10px">Alertas de inactividad</div>
       ${inact.length ? inact.map(a => { const c = SEV_COLOR[a.sev]; return `<div class="notif-item" style="cursor:pointer;border-color:${c}" onclick="TNR.irA('${a.view}')">
@@ -1253,6 +1256,7 @@
     timer: (action) => { ({ start: timerStart, pause: timerPause, stop: timerStop, reset: timerReset }[action] || function () {})(); },
     setTimerCat: (c) => { timer.cat = c; },
     irA: (v) => setView(v),
+    activarNotif: () => activarNotificaciones(),
     cerrar: closeModal,
   };
 
@@ -1264,12 +1268,49 @@
     else { el.className = 'cloud-status local'; txt.textContent = 'Modo local (este dispositivo)'; el.title = 'Sin conexión a la nube. Los datos se guardan solo en este navegador.'; }
   }
 
+  /* ---------- PWA + Notificaciones del dispositivo ---------- */
+  function initPWA() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(e => console.warn('No se pudo registrar el service worker', e));
+    }
+  }
+  function notifSoportada() { return 'Notification' in window; }
+  function activarNotificaciones() {
+    if (!notifSoportada()) { toast('Este navegador no soporta notificaciones', 'err'); return; }
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') { toast('Notificaciones activadas en este dispositivo', 'ok'); notificarResumen(true); }
+      else toast('No se concedió el permiso de notificaciones', 'err');
+    });
+  }
+  // Muestra un resumen de alertas (una vez por día, salvo que se fuerce)
+  function notificarResumen(force) {
+    if (!notifSoportada() || Notification.permission !== 'granted') return;
+    const hoy = todayStr();
+    if (!force && localStorage.getItem('tnr_lastNotif') === hoy) return;
+    const inact = buildInactividad().filter(a => a.sev === 'rojo' || a.sev === 'naranja');
+    const overdue = buildNotifs().filter(x => x.d != null && x.d <= 0);
+    const total = inact.length + overdue.length;
+    if (total === 0) return;
+    localStorage.setItem('tnr_lastNotif', hoy);
+    const lineas = [];
+    if (inact[0]) lineas.push(inact[0].frase);
+    if (overdue.length) lineas.push(`${overdue.length} recordatorio${overdue.length > 1 ? 's' : ''} por vencer`);
+    const titulo = `TNR · ${total} alerta${total > 1 ? 's' : ''}`;
+    const opts = { body: lineas.join(' · '), icon: 'logo.png', badge: 'logo.png', tag: 'tnr-resumen' };
+    // Preferir el service worker (funciona mejor en mobile / PWA instalada)
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification(titulo, opts)).catch(() => { try { new Notification(titulo, opts); } catch (_) {} });
+    } else { try { new Notification(titulo, opts); } catch (_) {} }
+  }
+
   /* ---------- Init ---------- */
   if (window.Icons) Icons.paintStatic(); // iconos estáticos del sidebar/topbar/modal
+  initPWA();
   DB.onRemoteChange = () => { searchTerm ? renderSearch() : render(); };
   setView('dashboard'); // render inmediato con datos locales/cacheados
   DB.init().then((online) => {
     setCloudStatus(online);
     searchTerm ? renderSearch() : render(); // refresco con datos de la nube
+    notificarResumen(false); // recordatorio al abrir (si ya dio permiso)
   }).catch((e) => { console.error(e); setCloudStatus(false); });
 })();
