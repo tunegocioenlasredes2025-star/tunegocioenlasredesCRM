@@ -8,7 +8,7 @@
   'use strict';
 
   const KEY = 'tnr_crm_v1';
-  const TABLES = ['prospectos', 'clientes', 'tareas'];
+  const TABLES = ['prospectos', 'clientes', 'tareas', 'eventos', 'metas']; // colecciones en la nube
 
   /* ---------- Catálogos ---------- */
   const METODOS_CONTACTO = ['Cold Call', 'WhatsApp', 'Instagram', 'LinkedIn', 'Referido', 'Boca en Boca', 'Networking', 'Email'];
@@ -44,7 +44,28 @@
     { id: 'mant',       cat: 'Mantenimiento',    nombre: 'Mantenimiento',      precio: 50000,  recurrente: true,  detalle: 'SEO · Optimización · Actualizaciones · Soporte', contenidos: {} },
   ];
 
-  function defaultData() { return { prospectos: [], clientes: [], tareas: [], _seeded: false }; }
+  function defaultData() { return { prospectos: [], clientes: [], tareas: [], eventos: [], metas: [], tiempos: [], _seeded: false }; }
+
+  // Categorías de eventos del calendario (con color)
+  const CATEGORIAS_EVENTO = [
+    { id: 'reunion', label: 'Reunión', color: '#7c5cff' },
+    { id: 'llamada', label: 'Llamada', color: '#1C9FE2' },
+    { id: 'seguimiento', label: 'Seguimiento', color: '#f5c451' },
+    { id: 'recordatorio', label: 'Recordatorio', color: '#f59e42' },
+    { id: 'vencimiento', label: 'Vencimiento', color: '#ff5d6c' },
+    { id: 'cliente', label: 'Cliente', color: '#3ecf8e' },
+    { id: 'produccion', label: 'Producción', color: '#f472b6' },
+    { id: 'admin', label: 'Administración', color: '#8b94a8' },
+  ];
+  const CATEGORIAS_TIEMPO = ['Ventas', 'Diseño', 'Desarrollo', 'Reuniones', 'Prospección', 'Administración'];
+  const METRICAS_META = [
+    { id: 'leads', label: 'Leads' },
+    { id: 'ventas', label: 'Ventas' },
+    { id: 'clientes', label: 'Clientes nuevos' },
+    { id: 'facturacion', label: 'Facturación', money: true },
+    { id: 'reuniones', label: 'Reuniones' },
+    { id: 'llamadas', label: 'Llamadas' },
+  ];
 
   /* ---------- Almacenamiento local ---------- */
   let cache = null;
@@ -56,6 +77,7 @@
       cache = raw ? JSON.parse(raw) : defaultData();
     } catch (e) { console.error('No se pudo leer el almacenamiento', e); cache = defaultData(); }
     TABLES.forEach(t => { if (!cache[t]) cache[t] = []; });
+    if (!cache.tiempos) cache.tiempos = []; // local, no se sincroniza
     return cache;
   }
   function save() {
@@ -88,10 +110,14 @@
       return this.enabled;
     },
     async pullAll() {
+      // Resiliente por tabla: si una tabla nueva todavía no existe en Supabase,
+      // se omite sin romper la sincronización del resto.
       for (const t of TABLES) {
-        const { data, error } = await this.client.from(t).select('id,data').order('updated_at', { ascending: false });
-        if (error) throw error;
-        cache[t] = (data || []).map(r => r.data);
+        try {
+          const { data, error } = await this.client.from(t).select('id,data').order('updated_at', { ascending: false });
+          if (error) throw error;
+          cache[t] = (data || []).map(r => r.data);
+        } catch (e) { console.warn('Tabla no disponible aún: ' + t + ' (¿falta correr el SQL?)', e && e.message); }
       }
     },
     push(table, obj) {
@@ -418,6 +444,54 @@
   }
 
   /* ============================================================
+     EVENTOS (Calendario)
+     ============================================================ */
+  function getEventos() { return load().eventos; }
+  function getEvento(id) { return load().eventos.find(e => e.id === id); }
+  function crearEvento(d) {
+    const e = Object.assign({ id: uid('EV'), fechaCreacion: nowISO(), titulo: '', fecha: '', hora: '', tipo: 'reunion', notas: '', clienteId: '' }, d);
+    load().eventos.unshift(e);
+    save(); Cloud.push('eventos', e);
+    return e;
+  }
+  function actualizarEvento(id, cambios) {
+    const e = getEvento(id);
+    if (e) { Object.assign(e, cambios); save(); Cloud.push('eventos', e); }
+    return e;
+  }
+  function eliminarEvento(id) {
+    cache.eventos = cache.eventos.filter(e => e.id !== id);
+    save(); Cloud.remove('eventos', id);
+  }
+
+  /* ============================================================
+     METAS (por mes 'YYYY-MM')
+     ============================================================ */
+  function getMeta(mesId) { return load().metas.find(m => m.id === mesId); }
+  function guardarMeta(mesId, valores) {
+    let m = getMeta(mesId);
+    if (!m) { m = { id: mesId, leads: 0, ventas: 0, clientes: 0, facturacion: 0, reuniones: 0, llamadas: 0 }; load().metas.unshift(m); }
+    Object.assign(m, valores);
+    save(); Cloud.push('metas', m);
+    return m;
+  }
+
+  /* ============================================================
+     TIEMPOS (Cronómetro) — LOCAL por dispositivo
+     ============================================================ */
+  function getTiempos() { return load().tiempos; }
+  function registrarTiempo(d) {
+    const t = Object.assign({ id: uid('TM'), fecha: nowISO(), categoria: 'Ventas', segundos: 0 }, d);
+    load().tiempos.unshift(t);
+    save(); // sin Cloud: la productividad es personal
+    return t;
+  }
+  function eliminarTiempo(id) {
+    cache.tiempos = cache.tiempos.filter(t => t.id !== id);
+    save();
+  }
+
+  /* ============================================================
      EXPORT / IMPORT / RESET
      ============================================================ */
   function exportar() { return JSON.stringify(load(), null, 2); }
@@ -449,6 +523,11 @@
   /* ---------- API pública ---------- */
   window.DB = {
     METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS,
+    CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
+    catEvento: (id) => CATEGORIAS_EVENTO.find(c => c.id === id) || CATEGORIAS_EVENTO[0],
+    getEventos, getEvento, crearEvento, actualizarEvento, eliminarEvento,
+    getMeta, guardarMeta,
+    getTiempos, registrarTiempo, eliminarTiempo,
     estadoColor: (id) => (ESTADOS_LEAD.find(e => e.id === id) || {}).color || '#8b94a8',
     getProspectos, getProspecto, crearProspecto, actualizarProspecto, eliminarProspecto, agregarHistorial, convertirEnCliente,
     getClientes, getCliente, crearCliente, actualizarCliente, eliminarCliente,

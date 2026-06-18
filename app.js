@@ -88,7 +88,7 @@
   }
   function render() {
     if (searchTerm) return renderSearch();
-    ({ dashboard: renderDashboard, prospectos: renderProspectos, clientes: renderClientes, tareas: renderTareas, notificaciones: renderNotificaciones }[current] || renderDashboard)();
+    ({ dashboard: renderDashboard, prospectos: renderProspectos, clientes: renderClientes, calendario: renderCalendario, tareas: renderTareas, productividad: renderProductividad, notificaciones: renderNotificaciones }[current] || renderDashboard)();
     updateNotifBadge();
   }
 
@@ -886,6 +886,251 @@
   });
 
   /* ============================================================
+     CALENDARIO
+     ============================================================ */
+  let calView = 'mes';
+  let calCursor = new Date();
+  const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const DIAS_SEM = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function eventosDe(fechaStr) { return DB.getEventos().filter(e => e.fecha === fechaStr).sort((a, b) => (a.hora || '').localeCompare(b.hora || '')); }
+
+  function renderCalendario() {
+    let titulo;
+    if (calView === 'dia') titulo = `${calCursor.getDate()} de ${MESES[calCursor.getMonth()]} ${calCursor.getFullYear()}`;
+    else if (calView === 'semana') {
+      const off = (calCursor.getDay() + 6) % 7; const s = new Date(calCursor); s.setDate(calCursor.getDate() - off);
+      const e = new Date(s); e.setDate(s.getDate() + 6);
+      titulo = `${s.getDate()} ${MESES[s.getMonth()].slice(0, 3)} – ${e.getDate()} ${MESES[e.getMonth()].slice(0, 3)} ${e.getFullYear()}`;
+    } else titulo = `${MESES[calCursor.getMonth()]} ${calCursor.getFullYear()}`;
+
+    view.innerHTML = `
+      <div class="view-head">
+        <div><h1>Calendario</h1><div class="sub">Agenda operativa del equipo</div></div>
+        <div class="head-actions">
+          <div class="seg">
+            <button class="${calView === 'mes' ? 'active' : ''}" onclick="TNR.calVista('mes')">Mes</button>
+            <button class="${calView === 'semana' ? 'active' : ''}" onclick="TNR.calVista('semana')">Semana</button>
+            <button class="${calView === 'dia' ? 'active' : ''}" onclick="TNR.calVista('dia')">Día</button>
+          </div>
+          <button class="btn-primary" onclick="TNR.nuevoEvento()">${icon('plus')}<span class="btn-label"> Evento</span></button>
+        </div>
+      </div>
+      <div class="cal-nav">
+        <button class="icon-btn" onclick="TNR.calMover(-1)">${icon('chevron-left')}</button>
+        <div class="cal-title">${titulo}</div>
+        <button class="icon-btn" onclick="TNR.calMover(1)">${icon('chevron-right')}</button>
+        <button class="btn-secondary" style="padding:7px 12px;margin-left:8px" onclick="TNR.calHoy()">Hoy</button>
+      </div>
+      ${calView === 'mes' ? calMes() : calView === 'semana' ? calSemana() : calDia()}
+      <div class="cal-legend">${DB.CATEGORIAS_EVENTO.map(c => `<span class="cal-leg"><span class="cal-ev-dot" style="background:${c.color}"></span>${c.label}</span>`).join('')}</div>
+    `;
+  }
+
+  function calMes() {
+    const y = calCursor.getFullYear(), m = calCursor.getMonth();
+    const off = (new Date(y, m, 1).getDay() + 6) % 7;
+    const start = new Date(y, m, 1 - off);
+    const todayS = todayStr();
+    let cells = '';
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const ds = ymd(d), evs = eventosDe(ds), inMonth = d.getMonth() === m;
+      cells += `<div class="cal-cell ${inMonth ? '' : 'out'} ${ds === todayS ? 'today' : ''}" onclick="TNR.nuevoEvento('${ds}')">
+        <div class="cal-daynum">${d.getDate()}</div>
+        <div class="cal-evs">${evs.slice(0, 3).map(e => { const c = DB.catEvento(e.tipo); return `<div class="cal-ev" style="background:${c.color}20;color:${c.color}" onclick="event.stopPropagation();TNR.editarEvento('${e.id}')"><span class="cal-ev-dot" style="background:${c.color}"></span>${e.hora ? esc(e.hora) + ' ' : ''}${esc(e.titulo)}</div>`; }).join('')}${evs.length > 3 ? `<div class="cal-more">+${evs.length - 3}</div>` : ''}</div>
+      </div>`;
+    }
+    return `<div class="cal-month"><div class="cal-weekhead">${DIAS_SEM.map(d => `<div>${d}</div>`).join('')}</div><div class="cal-grid">${cells}</div></div>`;
+  }
+
+  function calSemana() {
+    const off = (calCursor.getDay() + 6) % 7;
+    const start = new Date(calCursor); start.setDate(calCursor.getDate() - off);
+    const todayS = todayStr();
+    let cols = '';
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const ds = ymd(d), evs = eventosDe(ds);
+      cols += `<div class="cal-wcol ${ds === todayS ? 'today' : ''}">
+        <div class="cal-wday" onclick="TNR.nuevoEvento('${ds}')">${DIAS_SEM[i]} <strong>${d.getDate()}</strong></div>
+        <div class="cal-wbody">${evs.map(calEvItem).join('') || '<div class="muted" style="font-size:11px;padding:8px 6px">—</div>'}</div>
+      </div>`;
+    }
+    return `<div class="cal-week">${cols}</div>`;
+  }
+
+  function calDia() {
+    const ds = ymd(calCursor), evs = eventosDe(ds);
+    return `<div class="panel">${evs.length ? evs.map(calEvItem).join('') : '<div class="muted" style="font-size:13px">Sin eventos este día. Tocá “Evento” para agregar uno.</div>'}</div>`;
+  }
+
+  function calEvItem(e) {
+    const c = DB.catEvento(e.tipo);
+    const cli = e.clienteId ? DB.getCliente(e.clienteId) : null;
+    return `<div class="cal-ev-item" onclick="TNR.editarEvento('${e.id}')">
+      <span class="cal-ev-bar" style="background:${c.color}"></span>
+      <div style="flex:1;min-width:0"><div class="cell-strong" style="font-size:13px">${e.hora ? esc(e.hora) + ' · ' : ''}${esc(e.titulo)}</div>
+      <div class="cell-dim" style="font-size:12px">${c.label}${cli ? ' · ' + esc(cli.empresa || cli.nombre) : ''}${e.notas ? ' · ' + esc(e.notas) : ''}</div></div>
+    </div>`;
+  }
+
+  function formEvento(eid, fechaPrefill) {
+    const e = eid ? DB.getEvento(eid) : null;
+    openModal(eid ? 'Editar evento' : 'Nuevo evento', `
+      <form id="formEv"><div class="form-grid">
+        <div class="field full"><label>Título</label><input name="titulo" value="${esc(e ? e.titulo : '')}" placeholder="Ej: Reunión con cliente" /></div>
+        <div class="field"><label>Fecha</label><input name="fecha" type="date" value="${e ? e.fecha : (fechaPrefill || todayStr())}" /></div>
+        <div class="field"><label>Hora</label><input name="hora" type="time" value="${esc(e ? e.hora : '')}" /></div>
+        <div class="field"><label>Categoría</label><select name="tipo">${DB.CATEGORIAS_EVENTO.map(c => `<option value="${c.id}" ${e && e.tipo === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}</select></div>
+        <div class="field"><label>Cliente (opcional)</label><select name="clienteId"><option value="">—</option>${DB.getClientes().map(c => `<option value="${c.id}" ${e && e.clienteId === c.id ? 'selected' : ''}>${esc(c.empresa || c.nombre)}</option>`).join('')}</select></div>
+        <div class="field full"><label>Notas</label><textarea name="notas">${esc(e ? e.notas : '')}</textarea></div>
+      </div><div class="form-foot">
+        ${eid ? `<button type="button" class="btn-secondary" style="margin-right:auto;color:var(--red)" onclick="TNR.borrarEvento('${eid}')">${icon('trash')} Eliminar</button>` : ''}
+        <button type="button" class="btn-secondary" onclick="TNR.cerrar()">Cancelar</button>
+        <button type="submit" class="btn-primary">${eid ? 'Guardar' : 'Crear evento'}</button>
+      </div></form>`);
+    $('#formEv').onsubmit = (ev) => {
+      ev.preventDefault();
+      const d = readForm('formEv');
+      if (!d.titulo) { toast('Poné un título', 'err'); return; }
+      if (eid) DB.actualizarEvento(eid, d); else DB.crearEvento(d);
+      closeModal(); toast('Evento guardado', 'ok'); if (current === 'calendario') render();
+    };
+  }
+
+  /* ============================================================
+     PRODUCTIVIDAD (Metas + Cronómetro)
+     ============================================================ */
+  function mesId(d) { d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  function mesAnterior(id) { const [y, m] = id.split('-').map(Number); const d = new Date(y, m - 2, 1); return mesId(d); }
+  function mesLabel(id) { const [y, m] = id.split('-').map(Number); return `${MESES[m - 1]} ${y}`; }
+
+  function metricasMes(id) {
+    const inM = (iso) => iso && iso.slice(0, 7) === id;
+    let facturacion = 0;
+    DB.getClientes().forEach(c => (c.facturacion || []).forEach(f => { if (inM(f.fecha)) facturacion += (+f.monto || 0); }));
+    return {
+      leads: DB.getProspectos().filter(p => inM(p.fechaCreacion)).length,
+      ventas: DB.getProspectos().filter(p => p.estado === 'Ganado' && inM(p.fechaCreacion)).length,
+      clientes: DB.getClientes().filter(c => inM(c.fechaCreacion)).length,
+      facturacion,
+      reuniones: DB.getEventos().filter(e => e.tipo === 'reunion' && inM(e.fecha)).length,
+      llamadas: DB.getEventos().filter(e => e.tipo === 'llamada' && inM(e.fecha)).length,
+    };
+  }
+
+  function fmtDur(sec) {
+    sec = Math.floor(sec); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return h ? `${h}h ${m}m` : `${m}m`;
+  }
+  function fmtHMS(sec) {
+    sec = Math.max(0, Math.floor(sec)); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return [h, m, s].map(x => String(x).padStart(2, '0')).join(':');
+  }
+
+  /* --- Cronómetro (estado a nivel de módulo, persiste entre vistas) --- */
+  const timer = { running: false, acc: 0, startedAt: 0, cat: 'Ventas', handle: null };
+  function timerElapsed() { return timer.acc + (timer.running ? (Date.now() - timer.startedAt) / 1000 : 0); }
+  function timerTick() { const el = document.getElementById('timerDisplay'); if (el) el.textContent = fmtHMS(timerElapsed()); }
+  function timerStart() {
+    if (timer.running) return;
+    timer.startedAt = Date.now(); timer.running = true;
+    if (!timer.handle) timer.handle = setInterval(timerTick, 1000);
+    if (current === 'productividad') renderProductividad();
+  }
+  function timerPause() { if (!timer.running) return; timer.acc = timerElapsed(); timer.running = false; if (current === 'productividad') renderProductividad(); }
+  function timerStop() {
+    const total = timerElapsed();
+    if (total >= 1) { DB.registrarTiempo({ categoria: timer.cat, segundos: Math.round(total) }); toast('Sesión guardada: ' + fmtDur(total), 'ok'); }
+    timer.acc = 0; timer.running = false;
+    if (current === 'productividad') renderProductividad();
+  }
+  function timerReset() { timer.acc = 0; timer.running = false; if (current === 'productividad') renderProductividad(); }
+
+  function renderProductividad() {
+    const id = mesId();
+    const meta = DB.getMeta(id) || {};
+    const actual = metricasMes(id);
+    const prev = metricasMes(mesAnterior(id));
+
+    const metaRows = DB.METRICAS_META.map(mt => {
+      const target = +meta[mt.id] || 0;
+      const val = actual[mt.id] || 0;
+      const pa = prev[mt.id] || 0;
+      const pct = target > 0 ? Math.min(100, Math.round(val / target * 100)) : 0;
+      const rest = Math.max(0, target - val);
+      const fmtV = (n) => mt.money ? fmtMoney(n) : n;
+      const delta = val - pa;
+      const trend = delta > 0 ? `<span style="color:#3ecf8e">${icon('trending-up', 13)} +${mt.money ? fmtMoney(delta) : delta}</span>` : delta < 0 ? `<span style="color:#ff5d6c">${icon('trending-down', 13)} ${mt.money ? fmtMoney(delta) : delta}</span>` : `<span class="muted">=</span>`;
+      const col = pct >= 100 ? '#3ecf8e' : pct >= 50 ? '#f5c451' : '#1C9FE2';
+      return `<div class="meta-row">
+        <div class="meta-top">
+          <span class="meta-name">${mt.label}</span>
+          <span class="meta-val">${fmtV(val)} <span class="muted">/ <input class="meta-input" type="number" min="0" id="meta_${mt.id}" value="${target || ''}" placeholder="meta" /></span></span>
+        </div>
+        <div class="progress-bar" style="height:9px"><div class="progress-fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="meta-foot"><span>${pct}%${rest > 0 ? ` · faltan ${fmtV(rest)}` : ' · cumplida'}</span><span>${trend} <span class="muted">vs mes ant.</span></span></div>
+      </div>`;
+    }).join('');
+
+    // Cronómetro stats
+    const tiempos = DB.getTiempos();
+    const todayS = todayStr(), mesActual = id;
+    const sum = (fn) => tiempos.filter(fn).reduce((a, t) => a + t.segundos, 0);
+    const hoy = sum(t => (t.fecha || '').slice(0, 10) === todayS);
+    const semana = sum(t => { const d = daysUntil((t.fecha || '').slice(0, 10)); return d != null && d <= 0 && d > -7; });
+    const mes = sum(t => (t.fecha || '').slice(0, 7) === mesActual);
+    const byCat = {}; tiempos.forEach(t => byCat[t.categoria] = (byCat[t.categoria] || 0) + t.segundos);
+    const topCat = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a])[0];
+    const dias = new Set(tiempos.map(t => (t.fecha || '').slice(0, 10))); const totalAll = sum(() => true);
+    const prom = dias.size ? totalAll / dias.size : 0;
+
+    view.innerHTML = `
+      <div class="view-head">
+        <div><h1>Productividad</h1><div class="sub">Metas y tiempo · ${mesLabel(id)}</div></div>
+        <div class="head-actions"><button class="btn-primary" onclick="TNR.guardarMetas()">${icon('flag')}<span class="btn-label"> Guardar metas</span></button></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-title">${icon('trophy', 16)} Metas del mes <span class="muted" style="font-weight:400;font-size:11px">editá el número objetivo</span></div>
+          <div class="metas">${metaRows}</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">${icon('clock', 16)} Cronómetro de productividad</div>
+          <div class="timer-display" id="timerDisplay">${fmtHMS(timerElapsed())}</div>
+          <div class="timer-cat">
+            <label class="muted" style="font-size:12px">Categoría</label>
+            <select id="timerCat" onchange="TNR.setTimerCat(this.value)" ${timer.running ? 'disabled' : ''}>
+              ${DB.CATEGORIAS_TIEMPO.map(c => `<option ${timer.cat === c ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="timer-controls">
+            ${timer.running
+        ? `<button class="btn-secondary" onclick="TNR.timer('pause')">${icon('pause')} Pausar</button>`
+        : `<button class="btn-primary" onclick="TNR.timer('start')">${icon('play')} ${timer.acc > 0 ? 'Reanudar' : 'Iniciar'}</button>`}
+            <button class="btn-secondary" onclick="TNR.timer('stop')">${icon('stop')} Detener</button>
+            <button class="btn-secondary" onclick="TNR.timer('reset')">${icon('reset')} Reiniciar</button>
+          </div>
+          <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-top:18px">
+            ${kpi('Hoy', fmtDur(hoy), '#1C9FE2', '')}
+            ${kpi('Semana', fmtDur(semana), '#7c5cff', '')}
+            ${kpi('Mes', fmtDur(mes), '#3ecf8e', '')}
+          </div>
+          <div class="flex" style="justify-content:space-between;margin-top:14px;font-size:13px">
+            <span class="muted">Actividad top</span><strong>${topCat ? esc(topCat) + ' (' + fmtDur(byCat[topCat]) + ')' : '—'}</strong>
+          </div>
+          <div class="flex" style="justify-content:space-between;margin-top:6px;font-size:13px">
+            <span class="muted">Promedio diario</span><strong>${fmtDur(prom)}</strong>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* ============================================================
      EMPTY STATE
      ============================================================ */
   function emptyState(ic, title, text, action) {
@@ -947,6 +1192,26 @@
     borrarPago: (cid, pid) => { if (!confirm('¿Seguro que deseas eliminar este pago?')) return; DB.eliminarPago(cid, pid); toast('Pago eliminado'); abrirCliente(cid, 'facturacion'); },
     nuevaTarea, editarTarea, finalizarTarea, borrarTarea,
     filtrarTareas: (f) => { tareaFiltro = f; renderTareas(); },
+    // Calendario
+    calVista: (v) => { calView = v; renderCalendario(); },
+    calHoy: () => { calCursor = new Date(); renderCalendario(); },
+    calMover: (delta) => {
+      if (calView === 'mes') calCursor.setMonth(calCursor.getMonth() + delta);
+      else if (calView === 'semana') calCursor.setDate(calCursor.getDate() + delta * 7);
+      else calCursor.setDate(calCursor.getDate() + delta);
+      calCursor = new Date(calCursor); renderCalendario();
+    },
+    nuevoEvento: (fecha) => formEvento(null, fecha),
+    editarEvento: (id) => formEvento(id),
+    borrarEvento: (id) => { if (!confirm('¿Eliminar este evento?')) return; DB.eliminarEvento(id); closeModal(); toast('Evento eliminado'); if (current === 'calendario') render(); },
+    // Productividad
+    guardarMetas: () => {
+      const id = mesId(); const vals = {};
+      DB.METRICAS_META.forEach(mt => { const el = $('#meta_' + mt.id); if (el) vals[mt.id] = +el.value || 0; });
+      DB.guardarMeta(id, vals); toast('Metas guardadas', 'ok'); renderProductividad();
+    },
+    timer: (action) => { ({ start: timerStart, pause: timerPause, stop: timerStop, reset: timerReset }[action] || function () {})(); },
+    setTimerCat: (c) => { timer.cat = c; },
     cerrar: closeModal,
   };
 

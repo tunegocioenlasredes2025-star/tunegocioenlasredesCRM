@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <div id="app">
@@ -26,7 +26,9 @@
         <button class="nav-item active" data-view="dashboard"><span class="nav-ic" data-ic="dashboard"></span> Dashboard</button>
         <button class="nav-item" data-view="prospectos"><span class="nav-ic" data-ic="target"></span> Prospectos</button>
         <button class="nav-item" data-view="clientes"><span class="nav-ic" data-ic="users"></span> Clientes</button>
+        <button class="nav-item" data-view="calendario"><span class="nav-ic" data-ic="calendar"></span> Calendario</button>
         <button class="nav-item" data-view="tareas"><span class="nav-ic" data-ic="check-square"></span> Tareas</button>
+        <button class="nav-item" data-view="productividad"><span class="nav-ic" data-ic="clock"></span> Productividad</button>
         <button class="nav-item" data-view="notificaciones"><span class="nav-ic" data-ic="bell"></span> Notificaciones <span class="badge-count" id="notifBadge" hidden>0</span></button>
       </nav>
       <div class="cloud-status" id="cloudStatus"><span class="cs-dot"></span><span id="cloudStatusText">Conectando…</span></div>
@@ -68,10 +70,10 @@
   <div class="toast" id="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="icons.js?v=3"></script>
-  <script src="config.js?v=3"></script>
-  <script src="data.js?v=3"></script>
-  <script src="parser.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="icons.js?v=4"></script>
+  <script src="config.js?v=4"></script>
+  <script src="data.js?v=4"></script>
+  <script src="parser.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
