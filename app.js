@@ -179,15 +179,16 @@
         </div>
       </div>
 
-      <div class="grid-3" style="margin-bottom:16px">
-        <div class="panel">
-          <div class="panel-title">Facturación total <span class="muted" style="font-weight:400;font-size:11px">todos los clientes</span></div>
-          <div class="kpi-grid" style="margin:0;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
-            ${kpi('Facturación total', fmtMoney(factTotal), '#7c5cff', 'Todo lo facturado')}
-            ${kpi('Cobrado total', fmtMoney(cobradoTotal), '#3ecf8e', 'Todo lo cobrado')}
-            ${kpi('Adeudado total', fmtMoney(adeudadoTotal), adeudadoTotal > 0 ? '#ff5d6c' : '#3ecf8e', 'Saldo pendiente')}
-          </div>
+      <div class="panel" style="margin-bottom:16px">
+        <div class="panel-title">Facturación total <span class="muted" style="font-weight:400;font-size:11px">todos los clientes</span></div>
+        <div class="kpi-grid" style="margin:0;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+          ${kpi('Facturación total', fmtMoney(factTotal), '#7c5cff', 'Todo lo facturado')}
+          ${kpi('Cobrado total', fmtMoney(cobradoTotal), '#3ecf8e', 'Todo lo cobrado')}
+          ${kpi('Adeudado total', fmtMoney(adeudadoTotal), adeudadoTotal > 0 ? '#ff5d6c' : '#3ecf8e', 'Saldo pendiente')}
         </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:16px">
         ${kpiPanel('Estado de cobranza', [
           ['Al día', cAlDia, '#3ecf8e'], ['Con deuda', cConDeuda, '#f59e42'], ['Vencidos', cVencidos, '#ff5d6c'],
         ])}
@@ -197,7 +198,6 @@
       </div>
 
       <div class="grid-2">
-        <div class="panel">
         <div class="panel">
           <div class="panel-title">Seguimientos próximos</div>
           ${proximosSeguimientos(ps)}

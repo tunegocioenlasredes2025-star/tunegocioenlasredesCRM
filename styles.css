@@ -161,7 +161,8 @@ input, select, textarea { font-family: inherit; }
 .kpi:hover { border-color: var(--border-2); }
 .kpi .k-label { font-size: 12px; color: var(--text-dim); font-weight: 500; display: flex; align-items: center; gap: 7px; }
 .kpi .k-dot { width: 8px; height: 8px; border-radius: 50%; }
-.kpi .k-val { font-size: 28px; font-weight: 700; margin-top: 8px; letter-spacing: -.5px; }
+.kpi .k-val { font-size: 24px; font-weight: 700; margin-top: 8px; letter-spacing: -.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi { min-width: 0; }
 .kpi .k-sub { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
 
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; }
