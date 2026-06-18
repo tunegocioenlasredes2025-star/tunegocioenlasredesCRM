@@ -7,3 +7,8 @@
    ============================================================ */
 window.SUPABASE_URL = 'https://oqhzonwrcldwtdfurhzj.supabase.co';
 window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9xaHpvbndyY2xkd3RkZnVyaHpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzIzNTEsImV4cCI6MjA5NTc0ODM1MX0.yhRmByi1fjJC-EwhZdmofQ3W9-TJ89ELYmfanq3aHU0';
+
+// Notificaciones push (Web Push). Pegá acá la VAPID PUBLIC KEY que te dé la
+// función "notify" de Supabase (ver push-setup.sql). Si queda vacía, las
+// notificaciones funcionan solo al abrir la app.
+window.VAPID_PUBLIC = '';

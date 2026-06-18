@@ -494,6 +494,16 @@
     save();
   }
 
+  // Guarda la suscripción de push del navegador en Supabase (tabla push_subs)
+  async function guardarPushSub(sub) {
+    if (!Cloud.enabled || !sub || !sub.endpoint) return false;
+    try {
+      const { error } = await Cloud.client.from('push_subs').upsert({ id: sub.endpoint, data: sub, updated_at: nowISO() });
+      if (error) { console.error('push_subs', error.message); return false; }
+      return true;
+    } catch (e) { console.error('push_subs', e); return false; }
+  }
+
   /* ============================================================
      EXPORT / IMPORT / RESET
      ============================================================ */
@@ -530,7 +540,7 @@
     catEvento: (id) => CATEGORIAS_EVENTO.find(c => c.id === id) || CATEGORIAS_EVENTO[0],
     getEventos, getEvento, crearEvento, actualizarEvento, eliminarEvento,
     getMeta, guardarMeta,
-    getTiempos, registrarTiempo, eliminarTiempo,
+    getTiempos, registrarTiempo, eliminarTiempo, guardarPushSub,
     estadoColor: (id) => (ESTADOS_LEAD.find(e => e.id === id) || {}).color || '#8b94a8',
     getProspectos, getProspecto, crearProspecto, actualizarProspecto, eliminarProspecto, agregarHistorial, convertirEnCliente,
     getClientes, getCliente, crearCliente, actualizarCliente, eliminarCliente,

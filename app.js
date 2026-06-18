@@ -1277,10 +1277,27 @@
   function notifSoportada() { return 'Notification' in window; }
   function activarNotificaciones() {
     if (!notifSoportada()) { toast('Este navegador no soporta notificaciones', 'err'); return; }
-    Notification.requestPermission().then(p => {
-      if (p === 'granted') { toast('Notificaciones activadas en este dispositivo', 'ok'); notificarResumen(true); }
-      else toast('No se concedió el permiso de notificaciones', 'err');
+    Notification.requestPermission().then(async (p) => {
+      if (p !== 'granted') { toast('No se concedió el permiso de notificaciones', 'err'); return; }
+      toast('Notificaciones activadas en este dispositivo', 'ok');
+      notificarResumen(true);
+      // Push remoto (app cerrada): solo si hay VAPID configurada + soporte
+      if (window.VAPID_PUBLIC && navigator.serviceWorker && 'PushManager' in window) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          let sub = await reg.pushManager.getSubscription();
+          if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(window.VAPID_PUBLIC) });
+          const ok = await DB.guardarPushSub(sub.toJSON());
+          if (ok) toast('Push remoto activado en este dispositivo', 'ok');
+        } catch (e) { console.warn('No se pudo suscribir al push', e); }
+      }
     });
+  }
+  function urlB64ToUint8(b64) {
+    const pad = '='.repeat((4 - b64.length % 4) % 4);
+    const base = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base);
+    return Uint8Array.from(Array.prototype.map.call(raw, c => c.charCodeAt(0)));
   }
   // Muestra un resumen de alertas (una vez por día, salvo que se fuerce)
   function notificarResumen(force) {
