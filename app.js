@@ -841,26 +841,66 @@
     });
     return out.sort((a, b) => (a.d == null ? 99 : a.d) - (b.d == null ? 99 : b.d));
   }
+
+  // Detección de inactividad operativa
+  const SEV_COLOR = { amarillo: '#f5c451', naranja: '#f59e42', rojo: '#ff5d6c' };
+  function buildInactividad() {
+    const hoyMs = new Date(todayStr() + 'T00:00:00').getTime();
+    const dias = (iso) => iso ? Math.floor((hoyMs - new Date(iso.slice(0, 10) + 'T00:00:00').getTime()) / 86400000) : null;
+    const maxF = (arr, f) => { let m = null; arr.forEach(x => { const v = x[f]; if (v && (!m || v > m)) m = v; }); return m; };
+    const clientes = DB.getClientes();
+    let ultCli = null; clientes.forEach(c => { const h = (c.historial && c.historial[0]) ? c.historial[0].fecha : c.fechaCreacion; if (h && (!ultCli || h > ultCli)) ultCli = h; });
+    let ultTarea = null; DB.getTareas().forEach(t => { if (t.estado === 'Finalizada') { const f = t.finalizadaEn || t.fechaCreacion; if (f && (!ultTarea || f > ultTarea)) ultTarea = f; } });
+    const defs = [
+      { d: dias(maxF(clientes, 'fechaCreacion')), w: 7, n: 14, r: 21, txt: 'no se registra una venta', accion: 'Cerrá un prospecto o sumá un cliente', view: 'clientes', ic: 'wallet' },
+      { d: dias(maxF(DB.getProspectos(), 'fechaCreacion')), w: 3, n: 5, r: 7, txt: 'no se crea un lead', accion: 'Cargá nuevos prospectos', view: 'prospectos', ic: 'target' },
+      { d: dias(ultCli), w: 7, n: 10, r: 15, txt: 'no se actualiza un cliente', accion: 'Revisá tus clientes activos', view: 'clientes', ic: 'users' },
+      { d: dias(ultTarea), w: 3, n: 5, r: 7, txt: 'no se completa una tarea', accion: 'Completá tareas pendientes', view: 'tareas', ic: 'check-square' },
+    ];
+    const out = [];
+    defs.forEach(def => {
+      if (def.d == null) { out.push({ sev: 'rojo', frase: 'Todavía no hay registros: ' + def.txt.replace('no se ', ''), accion: def.accion, view: def.view, ic: def.ic }); return; }
+      if (def.d >= def.w) { const sev = def.d >= def.r ? 'rojo' : def.d >= def.n ? 'naranja' : 'amarillo'; out.push({ sev, frase: `Hace ${def.d} día${def.d === 1 ? '' : 's'} que ${def.txt}`, accion: def.accion, view: def.view, ic: def.ic }); }
+    });
+    const ord = { rojo: 0, naranja: 1, amarillo: 2 };
+    return out.sort((a, b) => ord[a.sev] - ord[b.sev]);
+  }
+
   function renderNotificaciones() {
+    const inact = buildInactividad();
     const list = buildNotifs();
+    const reminders = list.map(n => {
+      const cls = n.d < 0 ? 'overdue' : n.d === 0 ? 'today' : '';
+      let dtxt;
+      if (n.tipo === 'Cobro') dtxt = n.d < 0 ? 'Vencido' : 'A cobrar';
+      else dtxt = n.d == null ? '' : n.d < 0 ? `Vencido hace ${Math.abs(n.d)}d` : n.d === 0 ? 'Hoy' : `En ${n.d} día${n.d > 1 ? 's' : ''}`;
+      const metaFecha = n.fecha ? ' · ' + fmtDate(n.fecha) : '';
+      return `<div class="notif-item ${cls}" style="cursor:pointer" onclick="${n.action}">
+        <div class="n-ic" style="background:${n.color}22;color:${n.color}">${icon(n.ic, 18)}</div>
+        <div class="n-body"><div class="n-title">${esc(n.titulo)}</div><div class="n-meta">${esc(n.tipo)} · ${esc(n.meta || '')}${metaFecha}</div></div>
+        <span class="tag" style="${n.d < 0 ? 'color:#ff5d6c' : n.d === 0 ? 'color:#f5c451' : ''}">${dtxt}</span>
+      </div>`;
+    }).join('');
+
     view.innerHTML = `
-      <div class="view-head"><div><h1>Notificaciones</h1><div class="sub">Recordatorios de seguimientos, tareas y cobros</div></div></div>
-      ${list.length ? list.map(n => {
-        const cls = n.d < 0 ? 'overdue' : n.d === 0 ? 'today' : '';
-        let dtxt;
-        if (n.tipo === 'Cobro') dtxt = n.d < 0 ? 'Vencido' : 'A cobrar';
-        else dtxt = n.d == null ? '' : n.d < 0 ? `Vencido hace ${Math.abs(n.d)}d` : n.d === 0 ? 'Hoy' : `En ${n.d} día${n.d > 1 ? 's' : ''}`;
-        const metaFecha = n.fecha ? ' · ' + fmtDate(n.fecha) : '';
-        return `<div class="notif-item ${cls}" style="cursor:pointer" onclick="${n.action}">
-          <div class="n-ic" style="background:${n.color}22;color:${n.color}">${icon(n.ic, 18)}</div>
-          <div class="n-body"><div class="n-title">${esc(n.titulo)}</div><div class="n-meta">${esc(n.tipo)} · ${esc(n.meta || '')}${metaFecha}</div></div>
-          <span class="tag" style="${n.d < 0 ? 'color:#ff5d6c' : n.d === 0 ? 'color:#f5c451' : ''}">${dtxt}</span>
-        </div>`;
-      }).join('') : emptyState('bell', 'Todo al día', 'No hay seguimientos, tareas ni cobros próximos a vencer.')}
+      <div class="view-head"><div><h1>Notificaciones</h1><div class="sub">Alertas de inactividad y recordatorios</div></div></div>
+
+      <div class="panel-title" style="margin:2px 0 10px">Alertas de inactividad</div>
+      ${inact.length ? inact.map(a => { const c = SEV_COLOR[a.sev]; return `<div class="notif-item" style="cursor:pointer;border-color:${c}" onclick="TNR.irA('${a.view}')">
+        <div class="n-ic" style="background:${c}22;color:${c}">${icon(a.ic, 18)}</div>
+        <div class="n-body"><div class="n-title">${esc(a.frase)}</div><div class="n-meta">Recomendado: ${esc(a.accion)}</div></div>
+        <span class="tag" style="color:${c};text-transform:capitalize">${a.sev}</span>
+      </div>`; }).join('')
+        : `<div class="notif-item" style="border-color:#3ecf8e"><div class="n-ic" style="background:#3ecf8e22;color:#3ecf8e">${icon('check', 18)}</div><div class="n-body"><div class="n-title">Actividad al día</div><div class="n-meta">Ventas, leads, clientes y tareas con movimiento reciente</div></div></div>`}
+
+      <div class="panel-title" style="margin:24px 0 10px">Recordatorios</div>
+      ${reminders || '<div class="muted" style="font-size:13px">Sin seguimientos, tareas ni cobros próximos a vencer.</div>'}
     `;
   }
   function updateNotifBadge() {
-    const n = buildNotifs().filter(x => x.d != null && x.d <= 0).length;
+    const overdue = buildNotifs().filter(x => x.d != null && x.d <= 0).length;
+    const rojos = buildInactividad().filter(a => a.sev === 'rojo').length;
+    const n = overdue + rojos;
     const b = $('#notifBadge');
     b.hidden = n === 0; b.textContent = n;
   }
@@ -1212,6 +1252,7 @@
     },
     timer: (action) => { ({ start: timerStart, pause: timerPause, stop: timerStop, reset: timerReset }[action] || function () {})(); },
     setTimerCat: (c) => { timer.cat = c; },
+    irA: (v) => setView(v),
     cerrar: closeModal,
   };
 

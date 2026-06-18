@@ -435,7 +435,10 @@
   }
   function actualizarTarea(id, cambios) {
     const t = load().tareas.find(x => x.id === id);
-    if (t) { Object.assign(t, cambios); save(); Cloud.push('tareas', t); }
+    if (t) {
+      if (cambios.estado === 'Finalizada' && t.estado !== 'Finalizada') cambios.finalizadaEn = nowISO();
+      Object.assign(t, cambios); save(); Cloud.push('tareas', t);
+    }
     return t;
   }
   function eliminarTarea(id) {
