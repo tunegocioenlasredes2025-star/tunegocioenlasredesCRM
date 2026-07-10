@@ -403,7 +403,42 @@
   };
   const CIUDADES_QUICK = ['Morón', 'Castelar', 'Ituzaingó', 'Haedo', 'El Palomar', 'Ramos Mejía', 'San Antonio de Padua', 'Merlo', 'Villa Sarmiento', 'CABA'];
 
-  const bState = { rubro: 'Gimnasios', ciudad: 'Morón', loading: false, results: [], error: null, info: '', onlyNoWeb: false, soloContacto: false };
+  const bState = { rubro: 'Gimnasios', ciudad: 'Morón', loading: false, results: [], error: null, info: '', onlyNoWeb: false, soloContacto: false, fuente: 'osm' };
+
+  /* ---------- Google Places (se usa si hay window.GOOGLE_MAPS_KEY) ---------- */
+  function googleDisponible() { return !!(window.GOOGLE_MAPS_KEY && String(window.GOOGLE_MAPS_KEY).trim()); }
+
+  let _gmapsPromise = null;
+  function loadGoogleMaps() {
+    if (_gmapsPromise) return _gmapsPromise;
+    _gmapsPromise = new Promise((resolve, reject) => {
+      if (window.google && window.google.maps && window.google.maps.importLibrary) return resolve();
+      const s = document.createElement('script');
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(window.GOOGLE_MAPS_KEY)}&v=weekly&language=es&region=AR&loading=async`;
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => { _gmapsPromise = null; reject(new Error('gmaps-load')); };
+      document.head.appendChild(s);
+    });
+    return _gmapsPromise;
+  }
+
+  async function buscarGoogle(rubro, ciudad) {
+    await loadGoogleMaps();
+    const { Place } = await google.maps.importLibrary('places');
+    const query = `${rubro.split('/')[0].trim()} en ${ciudad}, Buenos Aires, Argentina`;
+    const { places } = await Place.searchByText({
+      textQuery: query,
+      fields: ['displayName', 'formattedAddress', 'nationalPhoneNumber', 'websiteURI', 'rating', 'userRatingCount', 'googleMapsURI'],
+      maxResultCount: 20, language: 'es', region: 'AR',
+    });
+    return (places || []).map(pl => ({
+      name: String(pl.displayName || '').trim(), address: pl.formattedAddress || '',
+      phone: pl.nationalPhoneNumber || '', website: pl.websiteURI || '',
+      instagram: '', facebook: '', email: '',
+      rating: pl.rating || null, reviews: pl.userRatingCount || null, gmapsUri: pl.googleMapsURI || '',
+    })).filter(p => p.name);
+  }
 
   // Un negocio sirve como prospecto solo si hay forma de contactarlo.
   function esContactable(p) { return !!(p.phone || p.website || p.instagram || p.email); }
@@ -413,7 +448,9 @@
     const opts = Object.keys(RUBROS_OSM).map(r => `<option ${bState.rubro === r ? 'selected' : ''}>${esc(r)}</option>`).join('');
     view.innerHTML = `
       <div class="view-head">
-        <div><h1>Buscar Negocios</h1><div class="sub">Negocios reales por rubro y zona. Tocá ${icon('map-pin')} para ver teléfono/web en Google Maps, y agregalos como prospectos.</div></div>
+        <div><h1>Buscar Negocios</h1><div class="sub">${googleDisponible()
+          ? 'Datos completos vía Google Maps (teléfono, web, rating). Agregalos como prospectos.'
+          : `Negocios reales por rubro y zona. Tocá ${icon('map-pin')} para ver teléfono/web en Google Maps, y agregalos como prospectos.`}</div></div>
       </div>
       <div class="filters">
         <select id="bRubro">${opts}</select>
@@ -489,10 +526,17 @@
   async function buscarRun() {
     bState.loading = true; bState.error = null; bState.results = []; drawBuscar();
     try {
-      const geo = await geocodeCiudad(bState.ciudad);
-      if (!geo) { bState.error = 'No encontré esa ciudad. Probá escribirla distinto (ej: "Morón").'; return; }
-      const els = await overpass(RUBROS_OSM[bState.rubro] || ['["shop"]'], geo);
-      let list = els.map(osmToNegocio).filter(Boolean);
+      let list;
+      if (googleDisponible()) {
+        bState.fuente = 'google';
+        list = await buscarGoogle(bState.rubro, bState.ciudad);
+      } else {
+        bState.fuente = 'osm';
+        const geo = await geocodeCiudad(bState.ciudad);
+        if (!geo) { bState.error = 'No encontré esa ciudad. Probá escribirla distinto (ej: "Morón").'; return; }
+        const els = await overpass(RUBROS_OSM[bState.rubro] || ['["shop"]'], geo);
+        list = els.map(osmToNegocio).filter(Boolean);
+      }
       const seen = new Set();
       list = list.filter(p => { const k = p.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
       list.sort((a, b) => completitud(b) - completitud(a) || a.name.localeCompare(b.name));
@@ -502,9 +546,11 @@
         ? `${conCont} con datos de contacto · ${list.length} en total`
         : `No se encontraron negocios de "${bState.rubro}" en ${bState.ciudad}. Probá otra zona o rubro.`;
     } catch (e) {
-      bState.error = e && e.busy
-        ? 'Los servidores de mapas están ocupados en este momento. Esperá unos segundos y volvé a tocar Buscar.'
-        : 'Tardó demasiado o falló la conexión. Reintentá en unos segundos (o probá una zona más chica).';
+      bState.error = (googleDisponible() && /gmaps/.test(String(e && e.message)))
+        ? 'No se pudo cargar Google Maps. Revisá que la API key sea válida y que tengas habilitada "Places API (New)".'
+        : (e && e.busy
+          ? 'Los servidores de mapas están ocupados en este momento. Esperá unos segundos y volvé a tocar Buscar.'
+          : 'Tardó demasiado o falló la conexión. Reintentá en unos segundos (o probá una zona más chica).');
     } finally {
       bState.loading = false; drawBuscar();
     }
@@ -533,7 +579,7 @@
     const pend = list.filter(p => !yaEnCRM(p.name)).length;
     box.innerHTML = `
       <div class="filters" style="margin-bottom:14px">
-        <span class="result-count" style="margin-left:0">${esc(bState.info)}${bState.soloContacto ? ` · mostrando ${list.length} con contacto` : ''}${bState.onlyNoWeb ? ' · sin web' : ''}</span>
+        <span class="result-count" style="margin-left:0">${esc(bState.info)} · <span style="color:var(--accent)">vía ${bState.fuente === 'google' ? 'Google Maps' : 'OpenStreetMap'}</span>${bState.soloContacto ? ` · ${list.length} con contacto` : ''}${bState.onlyNoWeb ? ' · sin web' : ''}</span>
         ${pend ? `<button class="btn-secondary" style="margin-left:auto" onclick="TNR.buscarAddAll()">${icon('plus')} Agregar todos (${pend})</button>` : ''}
       </div>
       <div class="table-wrap"><table>
@@ -542,8 +588,9 @@
           const en = yaEnCRM(p.name);
           const wa = String(p.phone || '').replace(/\D/g, '');
           const web = p.website ? (p.website.startsWith('http') ? p.website : 'https://' + p.website) : '';
-          const gmaps = `https://www.google.com/maps/search/${encodeURIComponent(p.name + ' ' + (p.address || bState.ciudad))}`;
+          const gmaps = p.gmapsUri || `https://www.google.com/maps/search/${encodeURIComponent(p.name + ' ' + (p.address || bState.ciudad))}`;
           const igSearch = `https://www.google.com/search?q=${encodeURIComponent(p.name + ' ' + bState.ciudad + ' instagram')}`;
+          const ratingTxt = p.rating ? ` · ⭐ ${p.rating}${p.reviews ? ` (${p.reviews})` : ''}` : '';
           const links = [
             `<a class="icon-btn gmaps-btn" title="Ver en Google Maps (teléfono · web · horarios)" target="_blank" href="${gmaps}">${icon('map-pin')}</a>`,
             p.instagram
@@ -554,7 +601,7 @@
             web ? `<a class="icon-btn" title="Sitio web" target="_blank" href="${esc(web)}">${icon('globe')}</a>` : '',
           ].filter(Boolean).join('');
           return `<tr>
-            <td data-label="Negocio"><div class="cell-strong">${esc(p.name)}</div>${p.address ? `<div class="cell-dim">${esc(p.address)}</div>` : ''}</td>
+            <td data-label="Negocio"><div class="cell-strong">${esc(p.name)}</div>${(p.address || ratingTxt) ? `<div class="cell-dim">${esc(p.address || '')}${ratingTxt}</div>` : ''}</td>
             <td data-label="Zona" class="cell-dim">${esc(bState.ciudad)}</td>
             <td data-label="Web">${p.website ? '<span class="tag">Tiene web</span>' : `<span class="tag" style="background:#3ecf8e22;color:#3ecf8e;border-color:#3ecf8e44">Sin web</span>`}</td>
             <td data-label="Contacto"><div class="row-actions">${links}</div></td>
@@ -572,7 +619,11 @@
       empresa: p.name, nombre: '', rubro: bState.rubro, ciudad: bState.ciudad, provincia: prov, pais: 'Argentina',
       telefono: p.phone || '', whatsapp: p.phone || '', sitioWeb: p.website || '', instagram: p.instagram || '', facebook: p.facebook || '', email: p.email || '',
       metodoContacto: p.phone ? 'WhatsApp' : '', estado: 'Prospecto',
-      observaciones: ['Encontrado con Buscar Negocios (OpenStreetMap)', p.address ? 'Dirección: ' + p.address : ''].filter(Boolean).join(' · '),
+      observaciones: [
+        'Encontrado con Buscar Negocios (' + (bState.fuente === 'google' ? 'Google Maps' : 'OpenStreetMap') + ')',
+        p.address ? 'Dirección: ' + p.address : '',
+        p.rating ? `Rating: ${p.rating}★${p.reviews ? ' (' + p.reviews + ' reseñas)' : ''}` : '',
+      ].filter(Boolean).join(' · '),
     };
   }
 
