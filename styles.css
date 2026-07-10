@@ -192,6 +192,8 @@ input, select, textarea { font-family: inherit; }
 .b-check input { width: 15px; height: 15px; accent-color: var(--accent); }
 .bp-add { padding: 6px 12px; font-size: 12.5px; white-space: nowrap; }
 .bp-add .ic { width: 14px; height: 14px; }
+.gmaps-btn { color: var(--accent); border-color: var(--border-2); }
+.gmaps-btn:hover { color: var(--accent); background: rgba(28,159,226,.14); border-color: var(--accent); }
 /* Análisis IA + generador de mensaje (detalle de prospecto) */
 .ia-result { display: flex; gap: 16px; align-items: flex-start; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px; }
 .ia-score { font-size: 34px; font-weight: 800; line-height: 1; display: flex; flex-direction: column; align-items: center; min-width: 72px; }

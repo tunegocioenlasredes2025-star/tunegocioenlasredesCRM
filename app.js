@@ -403,25 +403,31 @@
   };
   const CIUDADES_QUICK = ['Morón', 'Castelar', 'Ituzaingó', 'Haedo', 'El Palomar', 'Ramos Mejía', 'San Antonio de Padua', 'Merlo', 'Villa Sarmiento', 'CABA'];
 
-  const bState = { rubro: 'Gimnasios', ciudad: 'Morón', loading: false, results: [], error: null, info: '', onlyNoWeb: false };
+  const bState = { rubro: 'Gimnasios', ciudad: 'Morón', loading: false, results: [], error: null, info: '', onlyNoWeb: false, soloContacto: false };
+
+  // Un negocio sirve como prospecto solo si hay forma de contactarlo.
+  function esContactable(p) { return !!(p.phone || p.website || p.instagram || p.email); }
+  function completitud(p) { return (p.phone ? 1 : 0) + (p.instagram ? 1 : 0) + (p.website ? 1 : 0) + (p.email ? 1 : 0) + (p.facebook ? 0.5 : 0) + (p.address ? 0.5 : 0); }
 
   function renderBuscar() {
     const opts = Object.keys(RUBROS_OSM).map(r => `<option ${bState.rubro === r ? 'selected' : ''}>${esc(r)}</option>`).join('');
     view.innerHTML = `
       <div class="view-head">
-        <div><h1>Buscar Negocios</h1><div class="sub">Encontrá negocios reales por rubro y zona, y agregalos como prospectos. Fuente: OpenStreetMap.</div></div>
+        <div><h1>Buscar Negocios</h1><div class="sub">Negocios reales por rubro y zona. Tocá ${icon('map-pin')} para ver teléfono/web en Google Maps, y agregalos como prospectos.</div></div>
       </div>
       <div class="filters">
         <select id="bRubro">${opts}</select>
         <input id="bCiudad" list="bCiudades" value="${esc(bState.ciudad)}" placeholder="Ciudad / zona (ej: Morón)" style="min-width:180px" />
         <datalist id="bCiudades">${CIUDADES_QUICK.map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
         <button class="btn-primary" onclick="TNR.buscarRun()">${icon('search')} Buscar</button>
+        <label class="b-check"><input type="checkbox" id="bSoloContacto" ${bState.soloContacto ? 'checked' : ''}/> Solo con datos de contacto</label>
         <label class="b-check"><input type="checkbox" id="bNoWeb" ${bState.onlyNoWeb ? 'checked' : ''}/> Sólo sin sitio web</label>
       </div>
       <div id="buscarResults"></div>`;
     $('#bRubro').onchange = e => { bState.rubro = e.target.value; };
     $('#bCiudad').oninput = e => { bState.ciudad = e.target.value; };
     $('#bCiudad').onkeydown = e => { if (e.key === 'Enter') buscarRun(); };
+    $('#bSoloContacto').onchange = e => { bState.soloContacto = e.target.checked; drawBuscar(); };
     $('#bNoWeb').onchange = e => { bState.onlyNoWeb = e.target.checked; drawBuscar(); };
     drawBuscar();
   }
@@ -489,9 +495,12 @@
       let list = els.map(osmToNegocio).filter(Boolean);
       const seen = new Set();
       list = list.filter(p => { const k = p.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
-      list.sort((a, b) => (a.website ? 1 : 0) - (b.website ? 1 : 0) || a.name.localeCompare(b.name));
+      list.sort((a, b) => completitud(b) - completitud(a) || a.name.localeCompare(b.name));
       bState.results = list;
-      bState.info = list.length ? `${list.length} negocios encontrados en ${bState.ciudad}` : `No se encontraron negocios de "${bState.rubro}" en ${bState.ciudad}. Probá otra zona o rubro.`;
+      const conCont = list.filter(esContactable).length;
+      bState.info = list.length
+        ? `${conCont} con datos de contacto · ${list.length} en total`
+        : `No se encontraron negocios de "${bState.rubro}" en ${bState.ciudad}. Probá otra zona o rubro.`;
     } catch (e) {
       bState.error = e && e.busy
         ? 'Los servidores de mapas están ocupados en este momento. Esperá unos segundos y volvé a tocar Buscar.'
@@ -513,11 +522,18 @@
     if (bState.error) { box.innerHTML = `<div class="empty"><div class="e-ic">${icon('target', 40)}</div><h3>Ups</h3><p>${esc(bState.error)}</p></div>`; return; }
     if (!bState.results.length && !bState.info) { box.innerHTML = emptyState('map-pin', 'Buscá tus próximos clientes', 'Elegí un rubro y una zona, y tocá Buscar. Traemos negocios reales de OpenStreetMap.', 'TNR.buscarRun()'); return; }
     let list = bState.results.slice();
+    if (bState.soloContacto) list = list.filter(esContactable);
     if (bState.onlyNoWeb) list = list.filter(p => !p.website);
+    if (bState.results.length && !list.length) {
+      box.innerHTML = `<div class="filters" style="margin-bottom:14px"><span class="result-count" style="margin-left:0">${esc(bState.info)}</span></div>
+        <div class="empty"><div class="e-ic">${icon('inbox', 40)}</div><h3>Ninguno con datos de contacto</h3>
+        <p>OpenStreetMap no tiene teléfono/web/Instagram cargado para ${esc(bState.rubro).toLowerCase()} en ${esc(bState.ciudad)}. Destildá <strong>"Solo con datos de contacto"</strong> para ver todos, o probá otra zona/rubro.</p></div>`;
+      return;
+    }
     const pend = list.filter(p => !yaEnCRM(p.name)).length;
     box.innerHTML = `
       <div class="filters" style="margin-bottom:14px">
-        <span class="result-count" style="margin-left:0">${esc(bState.info)}${bState.onlyNoWeb ? ` · ${list.length} sin web` : ''}</span>
+        <span class="result-count" style="margin-left:0">${esc(bState.info)}${bState.soloContacto ? ` · mostrando ${list.length} con contacto` : ''}${bState.onlyNoWeb ? ' · sin web' : ''}</span>
         ${pend ? `<button class="btn-secondary" style="margin-left:auto" onclick="TNR.buscarAddAll()">${icon('plus')} Agregar todos (${pend})</button>` : ''}
       </div>
       <div class="table-wrap"><table>
@@ -526,12 +542,17 @@
           const en = yaEnCRM(p.name);
           const wa = String(p.phone || '').replace(/\D/g, '');
           const web = p.website ? (p.website.startsWith('http') ? p.website : 'https://' + p.website) : '';
+          const gmaps = `https://www.google.com/maps/search/${encodeURIComponent(p.name + ' ' + (p.address || bState.ciudad))}`;
+          const igSearch = `https://www.google.com/search?q=${encodeURIComponent(p.name + ' ' + bState.ciudad + ' instagram')}`;
           const links = [
+            `<a class="icon-btn gmaps-btn" title="Ver en Google Maps (teléfono · web · horarios)" target="_blank" href="${gmaps}">${icon('map-pin')}</a>`,
+            p.instagram
+              ? `<a class="icon-btn" title="Instagram" target="_blank" href="https://instagram.com/${esc(p.instagram)}">${icon('instagram')}</a>`
+              : `<a class="icon-btn" title="Buscar Instagram" target="_blank" href="${igSearch}">${icon('instagram')}</a>`,
             wa ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="https://wa.me/${waNum(p.phone)}">${icon('whatsapp')}</a>` : '',
             p.phone ? `<a class="icon-btn" title="Llamar" href="tel:${esc(p.phone)}">${icon('phone')}</a>` : '',
             web ? `<a class="icon-btn" title="Sitio web" target="_blank" href="${esc(web)}">${icon('globe')}</a>` : '',
-            p.instagram ? `<a class="icon-btn" title="Instagram" target="_blank" href="https://instagram.com/${esc(p.instagram)}">${icon('instagram')}</a>` : '',
-          ].filter(Boolean).join('') || '<span class="cell-dim">—</span>';
+          ].filter(Boolean).join('');
           return `<tr>
             <td data-label="Negocio"><div class="cell-strong">${esc(p.name)}</div>${p.address ? `<div class="cell-dim">${esc(p.address)}</div>` : ''}</td>
             <td data-label="Zona" class="cell-dim">${esc(bState.ciudad)}</td>
@@ -565,6 +586,7 @@
 
   function buscarAddAll() {
     let list = bState.results.slice();
+    if (bState.soloContacto) list = list.filter(esContactable);
     if (bState.onlyNoWeb) list = list.filter(p => !p.website);
     const pend = list.filter(p => !yaEnCRM(p.name));
     if (!pend.length) { toast('No hay negocios nuevos para agregar'); return; }
