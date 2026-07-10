@@ -577,10 +577,14 @@
       return;
     }
     const pend = list.filter(p => !yaEnCRM(p.name)).length;
+    const gmapsAll = `https://www.google.com/maps/search/${encodeURIComponent(bState.rubro.split('/')[0].trim() + ' en ' + bState.ciudad + ', Buenos Aires')}`;
     box.innerHTML = `
       <div class="filters" style="margin-bottom:14px">
         <span class="result-count" style="margin-left:0">${esc(bState.info)} · <span style="color:var(--accent)">vía ${bState.fuente === 'google' ? 'Google Maps' : 'OpenStreetMap'}</span>${bState.soloContacto ? ` · ${list.length} con contacto` : ''}${bState.onlyNoWeb ? ' · sin web' : ''}</span>
-        ${pend ? `<button class="btn-secondary" style="margin-left:auto" onclick="TNR.buscarAddAll()">${icon('plus')} Agregar todos (${pend})</button>` : ''}
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn-secondary gmaps-btn" style="padding:7px 12px" target="_blank" href="${gmapsAll}">${icon('map-pin')} Ver todo en Google Maps</a>
+          ${pend ? `<button class="btn-secondary" onclick="TNR.buscarAddAll()">${icon('plus')} Agregar todos (${pend})</button>` : ''}
+        </div>
       </div>
       <div class="table-wrap"><table>
         <thead><tr><th>Negocio</th><th>Zona</th><th>Web</th><th>Contacto</th><th></th></tr></thead>
