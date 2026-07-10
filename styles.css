@@ -192,6 +192,22 @@ input, select, textarea { font-family: inherit; }
 .b-check input { width: 15px; height: 15px; accent-color: var(--accent); }
 .bp-add { padding: 6px 12px; font-size: 12.5px; white-space: nowrap; }
 .bp-add .ic { width: 14px; height: 14px; }
+/* Análisis IA + generador de mensaje (detalle de prospecto) */
+.ia-result { display: flex; gap: 16px; align-items: flex-start; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px; }
+.ia-score { font-size: 34px; font-weight: 800; line-height: 1; display: flex; flex-direction: column; align-items: center; min-width: 72px; }
+.ia-score span { font-size: 13px; font-weight: 600; opacity: .7; }
+.ia-score small { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; font-weight: 600; }
+.ia-motivos { flex: 1; }
+.ia-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.ia-motivos ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.ia-motivos li { font-size: 13px; padding-left: 16px; position: relative; }
+.ia-motivos li::before { content: '⚠'; position: absolute; left: 0; color: var(--orange); font-size: 11px; }
+.msg-canales { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
+.msg-cn.active { border-color: var(--accent); color: var(--accent); background: rgba(28,159,226,.12); }
+.msg-canal-tag { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.msg-text { width: 100%; min-height: 130px; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: var(--r-sm); padding: 11px 13px; font-family: inherit; font-size: 13px; line-height: 1.5; resize: vertical; }
+.msg-text:focus { outline: none; border-color: var(--accent); }
+.msg-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
 /* ===== Table ===== */
 .table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }

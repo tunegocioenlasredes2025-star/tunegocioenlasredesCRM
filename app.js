@@ -374,12 +374,15 @@
      Encuentra negocios reales por rubro + zona (sin API key) y los
      agrega como prospectos. Prioriza los que NO tienen sitio web.
      ============================================================ */
+  // Selectores AFINADOS por rubro (evita mezclar categorías).
   const RUBROS_OSM = {
-    'Gimnasios':               ['["leisure"="fitness_centre"]', '["leisure"="sports_centre"]', '["sport"="fitness"]'],
+    'Gimnasios':               ['["leisure"="fitness_centre"]', '["sport"="fitness"]'],
     'Restaurantes':            ['["amenity"="restaurant"]'],
     'Bares y cafés':           ['["amenity"="cafe"]', '["amenity"="bar"]', '["amenity"="pub"]'],
-    'Institutos / educación':  ['["amenity"="language_school"]', '["amenity"="school"]', '["office"="educational_institution"]'],
-    'Pádel / canchas':         ['["leisure"="pitch"]', '["leisure"="sports_centre"]'],
+    'Institutos de inglés':    ['["amenity"="language_school"]'],
+    'Escuelas / academias':    ['["amenity"="school"]', '["amenity"="college"]', '["office"="educational_institution"]'],
+    'Pádel':                   ['["sport"="padel"]'],
+    'Canchas / clubes':        ['["leisure"="sports_centre"]', '["club"="sport"]'],
     'Dentistas':               ['["amenity"="dentist"]', '["healthcare"="dentist"]'],
     'Médicos / clínicas':      ['["amenity"="clinic"]', '["amenity"="doctors"]', '["healthcare"="clinic"]'],
     'Peluquerías / barberías': ['["shop"="hairdresser"]'],
@@ -389,14 +392,14 @@
     'Veterinarias':            ['["amenity"="veterinary"]'],
     'Farmacias':               ['["amenity"="pharmacy"]'],
     'Ferreterías':             ['["shop"="hardware"]', '["shop"="doityourself"]'],
-    'Panaderías':              ['["shop"="bakery"]'],
+    'Panaderías':              ['["shop"="bakery"]', '["shop"="pastry"]'],
     'Indumentaria / ropa':     ['["shop"="clothes"]', '["shop"="boutique"]', '["shop"="shoes"]'],
-    'Estudios contables':      ['["office"="accountant"]', '["office"="tax_advisor"]', '["office"="financial"]'],
+    'Estudios contables':      ['["office"="accountant"]', '["office"="tax_advisor"]'],
     'Abogados':                ['["office"="lawyer"]'],
-    'Talleres / automotores':  ['["shop"="car_repair"]', '["shop"="car"]', '["shop"="tyres"]'],
+    'Talleres / automotores':  ['["shop"="car_repair"]', '["shop"="tyres"]', '["shop"="motorcycle"]'],
+    'Concesionarias de autos': ['["shop"="car"]'],
     'Supermercados / kioscos': ['["shop"="supermarket"]', '["shop"="convenience"]', '["shop"="kiosk"]'],
     'Ópticas':                 ['["shop"="optician"]'],
-    'Todos los comercios':     ['["shop"]'],
   };
   const CIUDADES_QUICK = ['Morón', 'Castelar', 'Ituzaingó', 'Haedo', 'El Palomar', 'Ramos Mejía', 'San Antonio de Padua', 'Merlo', 'Villa Sarmiento', 'CABA'];
 
@@ -437,18 +440,29 @@
 
   async function overpass(selectors, bb) {
     const box = `(${bb.south},${bb.west},${bb.north},${bb.east})`;
-    const query = `[out:json][timeout:30];(${selectors.map(s => `nwr${s}${box};`).join('')});out center tags 120;`;
-    const eps = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
-    let lastErr;
+    const query = `[out:json][timeout:25];(${selectors.map(s => `nwr${s}${box};`).join('')});out center tags 90;`;
+    // Varios servidores espejo: si uno está ocupado/lento, se prueba el siguiente.
+    const eps = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://overpass.private.coffee/api/interpreter',
+    ];
+    let busy = false, lastErr;
     for (const ep of eps) {
       try {
-        const r = await fetch(ep, { method: 'POST', body: 'data=' + encodeURIComponent(query) });
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 27000);
+        const r = await fetch(ep, { method: 'POST', body: 'data=' + encodeURIComponent(query), signal: ctrl.signal });
+        clearTimeout(to);
+        if (r.status === 429 || r.status === 504 || r.status === 503) { busy = true; continue; }
         if (!r.ok) { lastErr = new Error('HTTP ' + r.status); continue; }
         const j = await r.json();
         return j.elements || [];
       } catch (e) { lastErr = e; }
     }
-    throw lastErr || new Error('overpass');
+    const err = new Error(busy ? 'busy' : 'net');
+    err.busy = busy;
+    throw err;
   }
 
   function osmToNegocio(el) {
@@ -457,11 +471,12 @@
     if (!name) return null;
     const addr = [[t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' '), t['addr:city']].filter(Boolean).join(', ');
     const ig = (t['contact:instagram'] || '').replace(/^.*instagram\.com\//, '').replace(/\/$/, '').replace(/^@/, '');
+    const fb = (t['contact:facebook'] || t.facebook || '').trim();
     return {
       name, address: addr.trim(),
       phone: (t['contact:phone'] || t.phone || t['contact:mobile'] || '').trim(),
-      website: (t.website || t['contact:website'] || '').trim(),
-      instagram: ig, email: (t['contact:email'] || t.email || '').trim(),
+      website: (t.website || t['contact:website'] || t.url || '').trim(),
+      instagram: ig, facebook: fb, email: (t['contact:email'] || t.email || '').trim(),
     };
   }
 
@@ -476,9 +491,11 @@
       list = list.filter(p => { const k = p.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
       list.sort((a, b) => (a.website ? 1 : 0) - (b.website ? 1 : 0) || a.name.localeCompare(b.name));
       bState.results = list;
-      bState.info = list.length ? `${list.length} negocios encontrados en ${bState.ciudad}` : `No se encontraron negocios de "${bState.rubro}" en ${bState.ciudad}.`;
+      bState.info = list.length ? `${list.length} negocios encontrados en ${bState.ciudad}` : `No se encontraron negocios de "${bState.rubro}" en ${bState.ciudad}. Probá otra zona o rubro.`;
     } catch (e) {
-      bState.error = 'Hubo un problema al buscar. Reintentá en unos segundos.';
+      bState.error = e && e.busy
+        ? 'Los servidores de mapas están ocupados en este momento. Esperá unos segundos y volvé a tocar Buscar.'
+        : 'Tardó demasiado o falló la conexión. Reintentá en unos segundos (o probá una zona más chica).';
     } finally {
       bState.loading = false; drawBuscar();
     }
@@ -532,7 +549,7 @@
     const prov = /caba|capital federal|ciudad de buenos aires/i.test(bState.ciudad) ? 'CABA' : 'Buenos Aires';
     return {
       empresa: p.name, nombre: '', rubro: bState.rubro, ciudad: bState.ciudad, provincia: prov, pais: 'Argentina',
-      telefono: p.phone || '', whatsapp: p.phone || '', sitioWeb: p.website || '', instagram: p.instagram || '', email: p.email || '',
+      telefono: p.phone || '', whatsapp: p.phone || '', sitioWeb: p.website || '', instagram: p.instagram || '', facebook: p.facebook || '', email: p.email || '',
       metodoContacto: p.phone ? 'WhatsApp' : '', estado: 'Prospecto',
       observaciones: ['Encontrado con Buscar Negocios (OpenStreetMap)', p.address ? 'Dirección: ' + p.address : ''].filter(Boolean).join(' · '),
     };
@@ -645,6 +662,18 @@
       </div>
       ${p.observaciones ? `<div class="field full mt-12"><label>Observaciones</label><div style="font-size:13px">${esc(p.observaciones)}</div></div>` : ''}
       <div class="divider"></div>
+      <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong style="font-size:13px">${icon('sparkles')} Análisis de oportunidad</strong>
+        <button class="btn-secondary" style="padding:5px 10px;font-size:12px" onclick="TNR.analizarProspecto('${p.id}')">${p.analisis ? 'Re-analizar' : 'Analizar negocio'}</button>
+      </div>
+      <div id="iaBox">${renderIaBox(p)}</div>
+      <div class="divider"></div>
+      <div style="margin-bottom:8px"><strong style="font-size:13px">${icon('message-square')} Generar mensaje</strong></div>
+      <div class="msg-canales">
+        ${['WhatsApp', 'Instagram', 'Email', 'Llamada'].map(cn => `<button class="btn-secondary msg-cn" data-canal="${cn}" style="padding:6px 11px;font-size:12px" onclick="TNR.genMensaje('${p.id}','${cn}')">${cn}</button>`).join('')}
+      </div>
+      <div id="msgBox"></div>
+      <div class="divider"></div>
       <div class="flex" style="justify-content:space-between;margin-bottom:8px">
         <strong style="font-size:13px">Historial</strong>
         <button class="btn-secondary" style="padding:5px 10px;font-size:12px" onclick="TNR.convertirCliente('${p.id}')">${icon('star')} Convertir en cliente</button>
@@ -675,6 +704,96 @@
     const c = DB.convertirEnCliente(id);
     closeModal(); toast('Cliente creado', 'ok');
     setView('clientes'); setTimeout(() => abrirCliente(c.id), 100);
+  }
+
+  /* ============================================================
+     ANÁLISIS DE OPORTUNIDAD + GENERADOR DE MENSAJE
+     (todo del lado del navegador, sin API key)
+     ============================================================ */
+  const AGENCIA = 'Tu Negocio En Las Redes';
+
+  function analizarNegocio(p) {
+    const has = {
+      web: !!String(p.sitioWeb || '').trim(),
+      ig: !!String(p.instagram || '').trim(),
+      wa: !!String(p.whatsapp || p.telefono || '').trim(),
+      email: !!String(p.email || '').trim(),
+      fb: !!String(p.facebook || '').trim(),
+    };
+    const reglas = [
+      { ok: has.web,   peso: 34, falta: 'No tiene página web' },
+      { ok: has.ig,    peso: 24, falta: 'No tiene Instagram (o no lo encontramos)' },
+      { ok: has.wa,    peso: 16, falta: 'Sin WhatsApp de contacto directo' },
+      { ok: has.email, peso: 14, falta: 'Sin email de contacto' },
+      { ok: has.fb,    peso: 12, falta: 'Sin página de Facebook' },
+    ];
+    let falta = 0, total = 0; const motivos = [];
+    reglas.forEach(r => { total += r.peso; if (!r.ok) { falta += r.peso; motivos.push(r.falta); } });
+    return { score: total ? Math.round(falta / total * 100) : 0, motivos, fecha: DB.nowISO() };
+  }
+
+  function renderIaBox(p) {
+    if (!p.analisis) return `<div class="cell-dim" style="font-size:12.5px">Tocá <strong>Analizar negocio</strong> para calcular el score de oportunidad y ver qué le falta.</div>`;
+    const a = p.analisis;
+    const col = a.score >= 70 ? '#3ecf8e' : a.score >= 45 ? '#f5c451' : '#ff5d6c';
+    return `<div class="ia-result">
+      <div class="ia-score" style="color:${col}">${a.score}<span>/100</span><small>oportunidad</small></div>
+      <div class="ia-motivos">
+        <div class="ia-label">Oportunidades detectadas</div>
+        ${a.motivos.length ? `<ul>${a.motivos.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : '<div class="cell-dim" style="font-size:12.5px">Tiene una presencia digital sólida. Buen candidato para mantenimiento/mejoras.</div>'}
+      </div>
+    </div>`;
+  }
+
+  function generarMensaje(p, canal) {
+    const emp = p.empresa || p.nombre || 'tu negocio';
+    const rubro = (p.rubro || '').toLowerCase();
+    const need = ((p.analisis && p.analisis.motivos && p.analisis.motivos[0]) || 'potenciar su presencia online').toLowerCase();
+    const paraRubro = rubro ? `a ${rubro}` : 'a negocios';
+    switch (canal) {
+      case 'WhatsApp':
+        return `¡Hola ${emp}! 👋 Soy de ${AGENCIA}. Estuve viendo su presencia online y noté que ${need}. Justamente ayudamos ${paraRubro} como el suyo a resolver eso y conseguir más clientes. ¿Les interesaría que les muestre una idea rápida, sin compromiso?`;
+      case 'Instagram':
+        return `¡Hola! Me encantó el perfil de ${emp} 🙌 Trabajo en ${AGENCIA} y detecté una oportunidad concreta: ${need}. ¿Te comparto una propuesta para potenciarlo?`;
+      case 'Email':
+        return `Asunto: Una idea para ${emp}\n\nHola equipo de ${emp},\n\nMi nombre es [Tu nombre], de ${AGENCIA}. Analizando su presencia digital detecté que ${need}, algo que hoy les puede estar costando clientes.\n\nMe encantaría mostrarles en 15 minutos cómo resolverlo. ¿Tienen disponibilidad esta semana?\n\nSaludos,\n[Tu nombre] — ${AGENCIA}`;
+      case 'Llamada':
+        return `GUION DE LLAMADA EN FRÍO\n\nApertura: "Hola, ¿hablo con ${emp}? Te llamo de ${AGENCIA}."\nGancho: "Estuve viendo su presencia online y noté que ${need}."\nPregunta: "¿Hoy cómo están consiguiendo clientes nuevos?"\nCierre: "Te propongo una reunión de 15 minutos para mostrarte una solución concreta. ¿Te viene bien mañana?"`;
+    }
+    return '';
+  }
+
+  function renderMsgBox(p, canal, txt) {
+    const wa = waNum(p.whatsapp || p.telefono);
+    let abrir = '';
+    if (canal === 'WhatsApp' && wa) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="https://wa.me/${wa}?text=${encodeURIComponent(txt)}">${icon('whatsapp')} Abrir WhatsApp</a>`;
+    else if (canal === 'Email' && p.email) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="mailto:${esc(p.email)}?subject=${encodeURIComponent('Una idea para ' + (p.empresa || ''))}&body=${encodeURIComponent(txt)}">${icon('mail')} Abrir Email</a>`;
+    else if (canal === 'Instagram' && p.instagram) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="https://instagram.com/${esc(String(p.instagram).replace('@', ''))}">${icon('instagram')} Abrir Instagram</a>`;
+    return `<div class="msg-canal-tag">${esc(canal)}</div>
+      <textarea id="msgText" class="msg-text">${esc(txt)}</textarea>
+      <div class="msg-actions">
+        <button class="btn-secondary" style="padding:7px 12px" onclick="TNR.copiarMsg()">${icon('copy')} Copiar</button>
+        ${abrir}
+      </div>`;
+  }
+
+  function analizarProspecto(id) {
+    const p = DB.getProspecto(id); if (!p) return;
+    const a = analizarNegocio(p);
+    DB.actualizarProspecto(id, { analisis: a });
+    const box = $('#iaBox'); if (box) box.innerHTML = renderIaBox(DB.getProspecto(id));
+    toast('Análisis actualizado', 'ok');
+  }
+  function genMensaje(id, canal) {
+    const p = DB.getProspecto(id); if (!p) return;
+    const txt = generarMensaje(p, canal);
+    const box = $('#msgBox'); if (box) box.innerHTML = renderMsgBox(p, canal, txt);
+    document.querySelectorAll('#modalBody .msg-cn').forEach(b => b.classList.toggle('active', b.dataset.canal === canal));
+  }
+  function copiarMsg() {
+    const t = $('#msgText'); if (!t) return;
+    t.select();
+    navigator.clipboard.writeText(t.value).then(() => toast('Mensaje copiado', 'ok')).catch(() => { try { document.execCommand('copy'); toast('Mensaje copiado', 'ok'); } catch (_) {} });
   }
 
   /* ============================================================
@@ -1413,6 +1532,7 @@
     nuevoProspecto, editarProspecto, borrarProspecto, abrirProspecto, nuevoProspectoChat, revisarParse, convertirCliente,
     clearFiltros: () => { pFilters.rubro = pFilters.ciudad = pFilters.estado = pFilters.metodo = ''; renderProspectos(); },
     buscarRun, buscarAdd, buscarAddAll,
+    analizarProspecto, genMensaje, copiarMsg,
     nuevoCliente, editarCliente, borrarCliente, abrirCliente,
     quitarSrv: (cid, sid) => { DB.quitarServicioCliente(cid, sid); abrirCliente(cid, 'servicios'); },
     setContEstado: (cid, ctid, v) => { DB.actualizarContenido(cid, ctid, { estado: v }); },
