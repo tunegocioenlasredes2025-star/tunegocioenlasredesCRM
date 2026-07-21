@@ -146,6 +146,16 @@
     ];
     const maxF = Math.max(1, ...etapas.map(e => e.v));
 
+    // Distribución de prospectos (Fase 5)
+    const svcCount = {}; ps.forEach(p => (p.servicios || []).forEach(s => svcCount[s] = (svcCount[s] || 0) + 1));
+    const svcRows = Object.entries(svcCount).sort((a, b) => b[1] - a[1]).map(([l, v]) => [l, v, '#1C9FE2']);
+    const priColors = { Urgente: '#ff5d6c', Alta: '#f59e42', Media: '#5b8cff', Baja: '#8b94a8' };
+    const priRows = ['Urgente', 'Alta', 'Media', 'Baja'].map(pr => [pr, ps.filter(p => p.prioridad === pr).length, priColors[pr]]).filter(r => r[1]);
+    const topBy = (key) => { const m = {}; ps.forEach(p => { const k = p[key]; if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6); };
+    const rubroRows = topBy('rubro').map(([l, v]) => [l, v, '#7c5cff']);
+    const ciudadRows = topBy('ciudad').map(([l, v]) => [l, v, '#3fb5ee']);
+    const conv = contactados ? Math.round(ganados / contactados * 100) : 0;
+
     view.innerHTML = `
       <div class="view-head">
         <div><h1>Dashboard</h1><div class="sub">Resumen general de la operación · ${fmtDate(todayStr())}</div></div>
@@ -156,6 +166,19 @@
         ${kpi('Interesados', interesados, '#7c5cff', 'En pipeline activo')}
         ${kpi('Reuniones', reuniones, '#f472b6', 'Agendadas')}
         ${kpi('Ventas cerradas', ganados, '#3ecf8e', 'Prospectos ganados')}
+        ${kpi('Conversión', conv + '%', conv >= 20 ? '#3ecf8e' : '#f5c451', 'Ganados / contactados')}
+      </div>
+
+      <div class="grid-2" style="margin-bottom:16px">
+        ${distPanel('Prospectos por servicio', svcRows)}
+        <div class="panel">
+          <div class="panel-title">Por prioridad</div>
+          ${barChart(priRows)}
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:16px">
+        ${distPanel('Top rubros', rubroRows)}
+        ${distPanel('Top ciudades', ciudadRows)}
       </div>
 
       <div class="grid-2" style="margin-bottom:16px">
@@ -214,6 +237,14 @@
 
   function kpi(label, val, color, sub) {
     return `<div class="kpi"><div class="k-label"><span class="k-dot" style="background:${color}"></span>${label}</div><div class="k-val">${val}</div>${sub ? `<div class="k-sub">${sub}</div>` : ''}</div>`;
+  }
+  function barChart(rows) {
+    if (!rows || !rows.length) return '<div class="cell-dim" style="padding:8px 0">Sin datos</div>';
+    const max = Math.max(1, ...rows.map(r => r[1]));
+    return `<div class="funnel">${rows.map(r => `<div class="funnel-row"><div class="f-label" title="${esc(r[0])}">${esc(r[0])}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${(r[1] / max * 100)}%;background:${r[2]}"></div></div><div class="f-val">${r[1]}</div></div>`).join('')}</div>`;
+  }
+  function distPanel(title, rows) {
+    return `<div class="panel"><div class="panel-title">${title}</div>${barChart(rows)}</div>`;
   }
   function kpiPanel(title, rows) {
     return `<div class="panel"><div class="panel-title">${title}</div>
