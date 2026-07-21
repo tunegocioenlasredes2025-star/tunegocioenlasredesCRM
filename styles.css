@@ -428,6 +428,8 @@ tbody tr:hover .row-actions { opacity: 1; }
 .timer-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .timer-controls button { justify-content: center; }
 
+.bottom-nav { display: none; }
+
 /* ===== Teléfonos: tablas -> tarjetas apiladas ===== */
 @media (max-width: 680px) {
   .topbar { padding: 12px 16px; gap: 10px; }
@@ -473,6 +475,28 @@ tbody tr:hover .row-actions { opacity: 1; }
   .timer-controls { grid-template-columns: 1fr; }
   .head-actions .seg { width: 100%; }
   .head-actions .seg button { flex: 1; }
+
+  /* Filtros: que no desborden y buscador a lo ancho */
+  .filters select { min-width: 0; flex: 1 1 44%; max-width: none; }
+  .filter-search { flex: 1 1 100%; max-width: none; }
+
+  /* Modales a pantalla completa en mobile */
+  .modal-overlay { padding: 0; align-items: stretch; }
+  .modal { width: 100%; max-width: 100%; height: 100%; max-height: 100%; border-radius: 0; display: flex; flex-direction: column; }
+  .modal-body { flex: 1; overflow-y: auto; }
+
+  /* Bottom nav visible + espacio inferior para no tapar contenido */
+  .bottom-nav { display: flex; }
+  .main { padding-bottom: 66px; }
+  .toast { bottom: 80px; }
 }
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 45;
+  background: var(--panel); border-top: 1px solid var(--border);
+  padding: 5px 4px calc(5px + env(safe-area-inset-bottom)); justify-content: space-around; }
+.bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  background: none; border: none; color: var(--text-faint); font-size: 10px; font-weight: 600;
+  padding: 5px 2px; min-height: 46px; cursor: pointer; transition: color .15s; }
+.bn-item .bn-ic { width: 21px; height: 21px; }
+.bn-item.active { color: var(--accent); }
 .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
 .sidebar-backdrop.show { display: block; }

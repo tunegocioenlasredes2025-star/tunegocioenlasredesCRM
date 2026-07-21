@@ -1630,6 +1630,27 @@
   function closeSidebar() { sidebar.classList.remove('open'); if (backdrop) backdrop.classList.remove('show'); }
   $('#hamburger').onclick = () => sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
 
+  /* Bottom nav (mobile) — navegación con una mano; reutiliza .nav-item para el estado activo */
+  (function buildBottomNav() {
+    const items = [
+      { v: 'dashboard', ic: 'dashboard', label: 'Inicio' },
+      { v: 'prospectos', ic: 'target', label: 'Prospectos' },
+      { v: 'buscar', ic: 'map-pin', label: 'Buscar' },
+      { v: 'clientes', ic: 'users', label: 'Clientes' },
+      { v: '__more', ic: 'menu', label: 'Más' },
+    ];
+    const nav = document.createElement('nav');
+    nav.className = 'bottom-nav';
+    nav.innerHTML = items.map(it => `<button class="bn-item${it.v !== '__more' ? ' nav-item' : ''}"${it.v !== '__more' ? ` data-view="${it.v}"` : ''} data-bn="${it.v}"><span class="bn-ic" data-ic="${it.ic}"></span><span>${it.label}</span></button>`).join('');
+    document.getElementById('app').appendChild(nav);
+    nav.querySelectorAll('button').forEach(b => b.onclick = () => {
+      const v = b.dataset.bn;
+      if (v === '__more') sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+      else setView(v);
+    });
+    if (window.Icons) Icons.paintStatic();
+  })();
+
   /* ============================================================
      BACKUP / RESTORE
      ============================================================ */
