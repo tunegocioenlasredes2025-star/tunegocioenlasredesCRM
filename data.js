@@ -31,6 +31,12 @@
   const ESTADOS_TAREA = ['Pendiente', 'En Curso', 'Finalizada'];
   const PRIORIDADES = ['Baja', 'Media', 'Alta', 'Urgente'];
 
+  // Servicio Principal del prospecto (qué le queremos vender). Un prospecto puede tener uno o varios.
+  const SERVICIOS_PRINCIPAL = [
+    'Página Web', 'Landing Page', 'Gestión de Redes', 'CRM', 'SaaS', 'Aplicación Web',
+    'Automatización con IA', 'Chatbot IA', 'Branding', 'Publicidad Digital', 'SEO', 'Múltiples servicios',
+  ];
+
   const SERVICIOS = [
     { id: 'rs-basico',  cat: 'Gestión de Redes', nombre: 'Plan Básico',        precio: 200000, recurrente: true,
       detalle: '4 Carruseles · 4 Estáticas · 4 Reels (12 contenidos · 3 publicaciones/semana)', contenidos: { carrusel: 4, estatica: 4, reel: 4 } },
@@ -178,6 +184,74 @@
     save();
   }
 
+  /* ---------- Clasificación automática de Servicio Principal + Prioridad ----------
+     Deriva qué servicio venderle a cada prospecto según su rubro, y rescata las
+     pistas ya escritas a mano en observaciones / próxima acción / análisis (score).
+     No pisa valores cargados manualmente: solo completa lo que falta, una vez. */
+  function serviciosPorRubro(rubro) {
+    const r = (rubro || '').toLowerCase();
+    const has = (...k) => k.some(x => r.includes(x));
+    if (has('padel', 'pádel', 'paddle')) return ['SaaS', 'Gestión de Redes', 'Página Web'];
+    if (has('futbol', 'fútbol', 'cancha')) return ['CRM', 'Gestión de Redes', 'Página Web'];
+    if (has('gimnas', 'fitness', 'crossfit', 'entrenamiento', 'pilates', 'danza', 'deportiv')) return ['Gestión de Redes', 'CRM', 'Página Web'];
+    if (has('helader', 'pizzer', 'hamburgues', 'parrilla', 'cafeter', 'sushi', 'panader', 'pasteler', 'restaurant', 'gastro', 'saludable')) return ['Gestión de Redes', 'Página Web', 'Publicidad Digital'];
+    if (has('barber', 'peluquer', 'estetic', 'estétic', 'spa', 'depilac', 'lash', 'uñas', 'canina')) return ['Gestión de Redes', 'Landing Page'];
+    if (has('odonto', 'dental', 'kinesi', 'nutri', 'psicolog', 'veterinar', 'optic', 'óptic', 'medic', 'clinic', 'salud')) return ['Página Web', 'Gestión de Redes', 'Automatización con IA'];
+    if (has('electric', 'plomer', 'gasist', 'cerrajer', 'pintor', 'chapa', 'mecanic', 'mecánic', 'taller', 'gomer', 'lubricentro', 'moto')) return ['Landing Page', 'Publicidad Digital', 'Gestión de Redes'];
+    if (has('contable', 'contador', 'juridic', 'jurídic', 'abogad', 'escriban')) return ['Página Web', 'Gestión de Redes'];
+    if (has('inmobiliar')) return ['CRM', 'Gestión de Redes', 'Página Web'];
+    if (has('evento', 'salon', 'salón', 'infantil')) return ['CRM', 'Página Web', 'Gestión de Redes'];
+    if (has('mueble', 'colchon', 'iluminac', 'ferreter', 'biciclet', 'vivero', 'deporte', 'comput', 'tecnolog', 'indument')) return ['Página Web', 'Gestión de Redes', 'Publicidad Digital'];
+    if (has('ingles', 'inglés', 'musica', 'música', 'manejo', 'autoescuela', 'academ', 'institut', 'educ', 'jardin', 'jardín')) return ['Página Web', 'Gestión de Redes', 'CRM'];
+    if (has('mudanza', 'flete', 'carpinter', 'construct', 'camara', 'cámara', 'seguridad')) return ['Landing Page', 'Página Web', 'Publicidad Digital'];
+    return ['Gestión de Redes', 'Página Web'];
+  }
+  function serviciosDesdeTexto(txt) {
+    const t = (txt || '').toLowerCase(); const out = [];
+    const add = s => { if (!out.includes(s)) out.push(s); };
+    if (/padela|\bsaas\b|sistema de reserva|sistema de turno/.test(t)) add('SaaS');
+    if (/gesti[oó]n de redes|\bredes\b|instagram|contenido/.test(t)) add('Gestión de Redes');
+    if (/landing/.test(t)) add('Landing Page');
+    if (/p[aá]gina web|web propia|web nueva|web premium|sitio web|ecommerce|e-commerce|tienda online|cat[aá]logo online|web de pedidos|carrito/.test(t)) add('Página Web');
+    if (/\bcrm\b/.test(t)) add('CRM');
+    if (/automatiz|recordatori|whatsapp bot|bot de|whatsapp autom/.test(t)) add('Automatización con IA');
+    if (/chatbot/.test(t)) add('Chatbot IA');
+    if (/branding|identidad visual/.test(t)) add('Branding');
+    if (/\bads\b|publicidad|google ads|meta ads|pauta/.test(t)) add('Publicidad Digital');
+    if (/\bseo\b/.test(t)) add('SEO');
+    if (/aplicaci[oó]n|\bapp\b/.test(t)) add('Aplicación Web');
+    return out;
+  }
+  function clasificarServicios(p) {
+    const texto = serviciosDesdeTexto((p.observaciones || '') + ' ' + (p.proximaAccion || ''));
+    const merged = [...texto];
+    serviciosPorRubro(p.rubro).forEach(s => { if (!merged.includes(s)) merged.push(s); });
+    return merged.slice(0, 3);
+  }
+  function prioridadDe(p) {
+    const t = ((p.observaciones || '') + ' ' + (p.proximaAccion || '')).toLowerCase();
+    if (/prioridad[:\s]*urgente|\burgente\b/.test(t)) return 'Urgente';
+    if (/oportunidad[:\s]*alta|prioridad[:\s]*alta|media-alta|medio-alta/.test(t)) return 'Alta';
+    if (/oportunidad[:\s]*baja|prioridad[:\s]*baja|media-baja/.test(t)) return 'Baja';
+    if (/oportunidad[:\s]*media|prioridad[:\s]*media/.test(t)) return 'Media';
+    const s = (p.analisis && p.analisis.score) || 0;
+    if (s >= 82) return 'Alta'; if (s >= 72) return 'Media'; if (s > 0) return 'Baja';
+    return 'Media';
+  }
+  // Completa servicios + prioridad en todos los prospectos que aún no fueron clasificados (una vez c/u).
+  function migrarServicios() {
+    let n = 0;
+    (load().prospectos || []).forEach(p => {
+      if (p._svcInit) return;
+      if (!Array.isArray(p.servicios) || !p.servicios.length) p.servicios = clasificarServicios(p);
+      if (!p.prioridad) p.prioridad = prioridadDe(p);
+      p._svcInit = true; n++;
+      Cloud.push('prospectos', p);
+    });
+    if (n) save();
+    return n;
+  }
+
   /* ---------- Inicialización ---------- */
   async function init() {
     load();
@@ -189,6 +263,7 @@
       seedIfEmpty(); // datos de ejemplo solo en modo local
     }
     migrarFinanzas(); // normaliza datos existentes
+    migrarServicios(); // clasifica servicio principal + prioridad de prospectos aún sin clasificar
     return Cloud.enabled;
   }
 
@@ -204,6 +279,7 @@
       nombre: '', empresa: '', rubro: '', ciudad: '', provincia: '', pais: 'Argentina',
       telefono: '', whatsapp: '', email: '', instagram: '', facebook: '', linkedin: '', sitioWeb: '',
       metodoContacto: '', estado: 'Prospecto', observaciones: '',
+      servicios: [], prioridad: '',
       proximaAccion: '', fechaSeguimiento: '', responsable: '', historial: [],
     }, d);
     if (!p.historial.length) p.historial.push({ tipo: 'Nota', texto: 'Prospecto creado', fecha: nowISO() });
@@ -535,7 +611,8 @@
 
   /* ---------- API pública ---------- */
   window.DB = {
-    METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS,
+    METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL,
+    clasificarServicios, prioridadDe, migrarServicios,
     CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
     catEvento: (id) => CATEGORIAS_EVENTO.find(c => c.id === id) || CATEGORIAS_EVENTO[0],
     getEventos, getEvento, crearEvento, actualizarEvento, eliminarEvento,

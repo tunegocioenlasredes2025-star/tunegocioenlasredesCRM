@@ -282,16 +282,18 @@
 
   function tablaProspectos(list) {
     return `<div class="table-wrap"><table>
-      <thead><tr><th>Empresa / Contacto</th><th>Rubro</th><th>Ciudad</th><th>Estado</th><th>Método</th><th>Seguimiento</th><th></th></tr></thead>
+      <thead><tr><th>Empresa / Contacto</th><th>Rubro</th><th>Servicio</th><th>Ciudad</th><th>Estado</th><th>Prioridad</th><th>Seguimiento</th><th></th></tr></thead>
       <tbody>${list.map(p => {
         const d = daysUntil(p.fechaSeguimiento);
         const segTag = p.fechaSeguimiento ? (d < 0 ? `<span class="tag" style="color:#ff5d6c">${fmtDate(p.fechaSeguimiento)}</span>` : d === 0 ? `<span class="tag" style="color:#f5c451">hoy</span>` : fmtDate(p.fechaSeguimiento)) : '<span class="cell-dim">—</span>';
+        const svc = (p.servicios || []).length ? (p.servicios || []).map(s => `<span class="tag tag-svc">${esc(s)}</span>`).join('') : '<span class="cell-dim">—</span>';
         return `<tr onclick="TNR.abrirProspecto('${p.id}')">
           <td data-label="Empresa"><div class="cell-strong">${esc(p.empresa || p.nombre || 'Sin nombre')}</div>${p.empresa && p.nombre ? `<div class="cell-dim">${esc(p.nombre)}</div>` : ''}</td>
           <td data-label="Rubro">${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : '<span class="cell-dim">—</span>'}</td>
+          <td data-label="Servicio"><div class="svc-tags">${svc}</div></td>
           <td data-label="Ciudad" class="cell-dim">${esc(p.ciudad) || '—'}</td>
           <td data-label="Estado">${estadoChip(p.estado)}</td>
-          <td data-label="Método" class="cell-dim">${esc(p.metodoContacto) || '—'}</td>
+          <td data-label="Prioridad">${p.prioridad ? prioridadChip(p.prioridad) : '<span class="cell-dim">—</span>'}</td>
           <td data-label="Seguimiento">${segTag}</td>
           <td data-label=""><div class="row-actions" onclick="event.stopPropagation()">
             ${p.whatsapp ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="https://wa.me/${waNum(p.whatsapp)}">${icon('whatsapp')}</a>` : ''}
@@ -326,8 +328,12 @@
         ${f('responsable', 'Responsable')}
         ${sel('metodoContacto', 'Método de contacto', ['', ...DB.METODOS_CONTACTO])}
         ${sel('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id))}
-        ${f('proximaAccion', 'Próxima acción', 'text', true)}
+        ${sel('prioridad', 'Prioridad', ['', ...DB.PRIORIDADES])}
         <div class="field"><label>Fecha de seguimiento</label><input type="date" name="fechaSeguimiento" value="${esc(p.fechaSeguimiento || '')}" /></div>
+        <div class="field full"><label>Servicio principal <span class="lbl-hint">(uno o varios)</span></label>
+          <div class="chips-check">${DB.SERVICIOS_PRINCIPAL.map(s => `<label class="chip-check"><input type="checkbox" name="servicios" value="${esc(s)}" ${(p.servicios || []).includes(s) ? 'checked' : ''} /><span>${esc(s)}</span></label>`).join('')}</div>
+        </div>
+        ${f('proximaAccion', 'Próxima acción', 'text', true)}
         <div class="field full"><label>Observaciones</label><textarea name="observaciones">${esc(p.observaciones || '')}</textarea></div>
       </div>
       <div class="form-foot">
@@ -338,8 +344,12 @@
   }
 
   function readForm(formId) {
+    const form = $('#' + formId);
+    const fd = new FormData(form);
     const data = {};
-    new FormData($('#' + formId)).forEach((v, k) => data[k] = (v || '').toString().trim());
+    fd.forEach((v, k) => { if (k !== 'servicios') data[k] = (v || '').toString().trim(); });
+    // 'servicios' es multi-valor (checkboxes): se lee como array
+    if (form.querySelector('[name="servicios"]')) data.servicios = fd.getAll('servicios').filter(Boolean);
     return data;
   }
 

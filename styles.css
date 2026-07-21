@@ -238,8 +238,19 @@ tbody tr:hover .row-actions { opacity: 1; }
 }
 .chip-dot { width: 7px; height: 7px; border-radius: 50%; }
 .tag { display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); }
+.tag-svc { background: rgba(28,159,226,.12); color: var(--accent); border-color: rgba(28,159,226,.35); }
+.svc-tags { display: flex; flex-wrap: wrap; gap: 4px; max-width: 260px; }
 
 /* ===== Forms ===== */
+.lbl-hint { color: var(--text-faint); font-weight: 400; }
+.chips-check { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-check { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-dim); font-size: 12.5px; font-weight: 500;
+  cursor: pointer; user-select: none; transition: border-color .15s, background .15s, color .15s; }
+.chip-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+.chip-check:hover { border-color: var(--accent); }
+.chip-check:has(input:checked) { background: rgba(28,159,226,.14); border-color: var(--accent); color: var(--text); }
+.chip-check:has(input:focus-visible) { box-shadow: 0 0 0 2px rgba(28,159,226,.4); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field.full { grid-column: 1 / -1; }
