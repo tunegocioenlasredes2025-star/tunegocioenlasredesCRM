@@ -73,7 +73,9 @@
   /* ---------- Estado de la app ---------- */
   let current = 'dashboard';
   let searchTerm = '';
-  const pFilters = { rubro: '', ciudad: '', estado: '', metodo: '' };
+  const pFilters = { q: '', rubro: '', servicio: '', ciudad: '', estado: '', metodo: '', prioridad: '', responsable: '', wa: '', ig: '', web: '' };
+  let pPage = 1;
+  const PAGE = 50;
 
   /* ============================================================
      ROUTER
@@ -240,17 +242,33 @@
   /* ============================================================
      PROSPECTOS
      ============================================================ */
+  const tieneWA = p => !!(p.whatsapp && !/^no\b|^no\s|sin\b|tel fijo/i.test(String(p.whatsapp).trim()));
+  const tieneIG = p => !!(p.instagram && !/^no\b|no confirm|no encontrado/i.test(String(p.instagram).trim()));
+  const tieneWeb = p => !!(p.sitioWeb && !/^no\b|no tiene|no encontr/i.test(String(p.sitioWeb).trim()));
+
+  function filtrarProspectos(all) {
+    const q = pFilters.q.trim().toLowerCase();
+    return all.filter(p =>
+      (!pFilters.rubro || p.rubro === pFilters.rubro) &&
+      (!pFilters.servicio || (p.servicios || []).includes(pFilters.servicio)) &&
+      (!pFilters.ciudad || p.ciudad === pFilters.ciudad) &&
+      (!pFilters.estado || p.estado === pFilters.estado) &&
+      (!pFilters.metodo || p.metodoContacto === pFilters.metodo) &&
+      (!pFilters.prioridad || p.prioridad === pFilters.prioridad) &&
+      (!pFilters.responsable || p.responsable === pFilters.responsable) &&
+      (!pFilters.wa || (pFilters.wa === 'si' ? tieneWA(p) : !tieneWA(p))) &&
+      (!pFilters.ig || (pFilters.ig === 'si' ? tieneIG(p) : !tieneIG(p))) &&
+      (!pFilters.web || (pFilters.web === 'si' ? tieneWeb(p) : !tieneWeb(p))) &&
+      (!q || [p.empresa, p.nombre, p.rubro, p.ciudad, p.instagram, p.whatsapp, p.observaciones, (p.servicios || []).join(' ')].some(v => (v || '').toLowerCase().includes(q)))
+    );
+  }
+  const activos = () => Object.keys(pFilters).filter(k => pFilters[k]).length;
+
   function renderProspectos() {
     const all = DB.getProspectos();
     const rubros = [...new Set(all.map(p => p.rubro).filter(Boolean))].sort();
     const ciudades = [...new Set(all.map(p => p.ciudad).filter(Boolean))].sort();
-
-    let list = all.filter(p =>
-      (!pFilters.rubro || p.rubro === pFilters.rubro) &&
-      (!pFilters.ciudad || p.ciudad === pFilters.ciudad) &&
-      (!pFilters.estado || p.estado === pFilters.estado) &&
-      (!pFilters.metodo || p.metodoContacto === pFilters.metodo)
-    );
+    const responsables = [...new Set(all.map(p => p.responsable).filter(Boolean))].sort();
 
     view.innerHTML = `
       <div class="view-head">
@@ -262,22 +280,47 @@
       </div>
 
       <div class="filters">
+        <div class="filter-search"><span class="search-ic" data-ic="search"></span><input type="search" id="pSearch" placeholder="Buscar en resultados…" value="${esc(pFilters.q)}" autocomplete="off" /></div>
+        ${selectFilter('servicio', 'Servicio', DB.SERVICIOS_PRINCIPAL, pFilters.servicio)}
         ${selectFilter('rubro', 'Rubro', rubros, pFilters.rubro)}
+        ${selectFilter('prioridad', 'Prioridad', DB.PRIORIDADES, pFilters.prioridad)}
         ${selectFilter('ciudad', 'Ciudad', ciudades, pFilters.ciudad)}
         ${selectFilter('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id), pFilters.estado)}
         ${selectFilter('metodo', 'Método', DB.METODOS_CONTACTO, pFilters.metodo)}
-        ${(pFilters.rubro || pFilters.ciudad || pFilters.estado || pFilters.metodo) ? `<button class="filter-clear" onclick="TNR.clearFiltros()">Limpiar filtros</button>` : ''}
-        <span class="result-count">${list.length} resultado${list.length !== 1 ? 's' : ''}</span>
+        ${responsables.length ? selectFilter('responsable', 'Responsable', responsables, pFilters.responsable) : ''}
+        ${triFilter('wa', 'WhatsApp', pFilters.wa)}
+        ${triFilter('ig', 'Instagram', pFilters.ig)}
+        ${triFilter('web', 'Web', pFilters.web)}
+        ${activos() ? `<button class="filter-clear" onclick="TNR.clearFiltros()">${icon('x')} Limpiar (${activos()})</button>` : ''}
       </div>
-
-      ${list.length ? tablaProspectos(list) : emptyState('target', 'Sin prospectos', 'Cargá tu primer prospecto con el formulario o con el chat inteligente.', 'TNR.nuevoProspecto()')}
+      <div id="pList"></div>
     `;
+    Icons.paintStatic();
+    $$('#view .filters select').forEach(s => s.onchange = () => { pFilters[s.dataset.f] = s.value; pPage = 1; renderProspectosList(); });
+    const si = $('#pSearch');
+    if (si) si.oninput = () => { pFilters.q = si.value; pPage = 1; renderProspectosList(); };
+    renderProspectosList();
+  }
 
-    $$('#view .filters select').forEach(s => s.onchange = () => { pFilters[s.dataset.f] = s.value; renderProspectos(); });
+  function renderProspectosList() {
+    const box = $('#pList'); if (!box) return;
+    const filtered = filtrarProspectos(DB.getProspectos());
+    const shown = filtered.slice(0, pPage * PAGE);
+    const restantes = filtered.length - shown.length;
+    box.innerHTML = `
+      <div class="list-meta"><span class="result-count">${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}</span>${filtered.length > shown.length ? `<span class="cell-dim">mostrando ${shown.length}</span>` : ''}</div>
+      ${shown.length ? tablaProspectos(shown) : emptyState('target', 'Sin resultados', activos() ? 'Ningún prospecto coincide con los filtros. Probá aflojar alguno.' : 'Cargá tu primer prospecto con el formulario o con el chat inteligente.', activos() ? '' : 'TNR.nuevoProspecto()')}
+      ${restantes > 0 ? `<button class="btn-load-more" id="pMore">Ver ${Math.min(PAGE, restantes)} más · quedan ${restantes}</button>` : ''}
+    `;
+    const more = $('#pMore');
+    if (more) more.onclick = () => { pPage++; renderProspectosList(); };
   }
 
   function selectFilter(key, label, opts, val) {
-    return `<select data-f="${key}"><option value="">${label}: todos</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    return `<select data-f="${key}" class="${val ? 'on' : ''}"><option value="">${label}: todos</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+  }
+  function triFilter(key, label, val) {
+    return `<select data-f="${key}" class="${val ? 'on' : ''}"><option value="">${label}: todos</option><option value="si" ${val === 'si' ? 'selected' : ''}>Con ${label}</option><option value="no" ${val === 'no' ? 'selected' : ''}>Sin ${label}</option></select>`;
   }
 
   function tablaProspectos(list) {
@@ -1617,7 +1660,7 @@
      ============================================================ */
   window.TNR = {
     nuevoProspecto, editarProspecto, borrarProspecto, abrirProspecto, nuevoProspectoChat, revisarParse, convertirCliente,
-    clearFiltros: () => { pFilters.rubro = pFilters.ciudad = pFilters.estado = pFilters.metodo = ''; renderProspectos(); },
+    clearFiltros: () => { Object.keys(pFilters).forEach(k => pFilters[k] = ''); pPage = 1; renderProspectos(); },
     buscarRun, buscarAdd, buscarAddAll,
     analizarProspecto, genMensaje, copiarMsg,
     nuevoCliente, editarCliente, borrarCliente, abrirCliente,
