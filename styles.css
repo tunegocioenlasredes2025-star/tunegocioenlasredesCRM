@@ -197,6 +197,12 @@ input, select, textarea { font-family: inherit; }
 .result-count { color: var(--text-dim); font-size: 13px; }
 .btn-load-more { display: block; width: 100%; margin-top: 14px; padding: 12px; background: var(--panel); border: 1px dashed var(--border-2); color: var(--text-dim); border-radius: var(--r-sm); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
 .btn-load-more:hover { border-color: var(--accent); color: var(--accent); background: rgba(28,159,226,.06); }
+.btn-danger { background: var(--red); color: #fff; border: 1px solid var(--red); padding: 9px 16px; border-radius: var(--r-sm); font-size: 13px; font-weight: 600; cursor: pointer; transition: filter .15s; }
+.btn-danger:hover { filter: brightness(1.08); }
+.confirm-msg { font-size: 14px; color: var(--text); line-height: 1.55; }
+.notif-x { background: none; border: none; color: var(--text-faint); width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; cursor: pointer; flex-shrink: 0; transition: color .15s, background .15s; }
+.notif-x:hover { color: var(--red); background: rgba(255,93,108,.12); }
+.notif-x .ic { width: 15px; height: 15px; }
 /* ===== Buscar Negocios ===== */
 .b-check { display: inline-flex; align-items: center; gap: 7px; color: var(--text-dim); font-size: 13px; cursor: pointer; }
 .b-check input { width: 15px; height: 15px; accent-color: var(--accent); }
@@ -483,10 +489,11 @@ tbody tr:hover .row-actions { opacity: 1; }
   .filters select { min-width: 0; flex: 1 1 44%; max-width: none; }
   .filter-search { flex: 1 1 100%; max-width: none; }
 
-  /* Modales a pantalla completa en mobile */
-  .modal-overlay { padding: 0; align-items: stretch; }
-  .modal { width: 100%; max-width: 100%; height: 100%; max-height: 100%; border-radius: 0; display: flex; flex-direction: column; }
-  .modal-body { flex: 1; overflow-y: auto; }
+  /* Modales a pantalla completa en mobile (overlay flex para constreñir altura) */
+  .modal-overlay { padding: 0; display: flex; }
+  .modal { width: 100%; max-width: 100%; height: 100%; max-height: 100%; border-radius: 0; display: flex; flex-direction: column; min-height: 0; }
+  .modal-head { flex-shrink: 0; }
+  .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
   /* Bottom nav visible + espacio inferior para no tapar contenido */
   .bottom-nav { display: flex; }

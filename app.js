@@ -54,6 +54,18 @@
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !overlay.hidden) closeModal(); });
 
+  // Diálogo de confirmación elegante (reemplaza a confirm() nativo)
+  function confirmDialog(title, message, okLabel, onOk, danger) {
+    openModal(title, `
+      <div class="confirm-msg">${esc(message)}</div>
+      <div class="form-foot">
+        <button type="button" class="btn-secondary" id="confirmCancel">Cancelar</button>
+        <button type="button" class="${danger ? 'btn-danger' : 'btn-primary'}" id="confirmOk">${esc(okLabel || 'Confirmar')}</button>
+      </div>`);
+    $('#confirmCancel').onclick = closeModal;
+    $('#confirmOk').onclick = () => { closeModal(); onOk(); };
+  }
+
   /* ---------- Chips ---------- */
   function estadoChip(estado) {
     const c = DB.estadoColor(estado);
@@ -449,8 +461,7 @@
   }
   function borrarProspecto(id) {
     const p = DB.getProspecto(id);
-    if (!confirm(`¿Eliminar el prospecto "${p.empresa || p.nombre}"? Esta acción no se puede deshacer.`)) return;
-    DB.eliminarProspecto(id); toast('Prospecto eliminado'); render();
+    confirmDialog('Eliminar prospecto', `¿Eliminar el prospecto "${p.empresa || p.nombre}"? Esta acción no se puede deshacer.`, 'Eliminar', () => { DB.eliminarProspecto(id); toast('Prospecto eliminado'); render(); }, true);
   }
 
   /* ============================================================
@@ -1053,8 +1064,7 @@
   }
   function borrarCliente(id) {
     const c = DB.getCliente(id);
-    if (!confirm(`¿Eliminar al cliente "${c.empresa || c.nombre}"?`)) return;
-    DB.eliminarCliente(id); toast('Cliente eliminado'); render();
+    confirmDialog('Eliminar cliente', `¿Eliminar al cliente "${c.empresa || c.nombre}"? Esta acción no se puede deshacer.`, 'Eliminar', () => { DB.eliminarCliente(id); toast('Cliente eliminado'); render(); }, true);
   }
 
   /* ---------- Detalle de cliente (tabs) ---------- */
@@ -1324,23 +1334,26 @@
     $('#formTarea').onsubmit = e => { e.preventDefault(); DB.actualizarTarea(id, readForm('formTarea')); closeModal(); toast('Tarea actualizada', 'ok'); render(); };
   }
   function finalizarTarea(id) { DB.actualizarTarea(id, { estado: 'Finalizada' }); toast('Tarea finalizada', 'ok'); render(); }
-  function borrarTarea(id) { if (!confirm('¿Eliminar tarea?')) return; DB.eliminarTarea(id); render(); }
+  function borrarTarea(id) { confirmDialog('Eliminar tarea', '¿Eliminar esta tarea?', 'Eliminar', () => { DB.eliminarTarea(id); render(); }, true); }
 
   /* ============================================================
      NOTIFICACIONES
      ============================================================ */
+  function notifDismissed() { try { return JSON.parse(localStorage.getItem('tnr_notif_dismissed') || '[]'); } catch (e) { return []; } }
+  function notifDismiss(ids) { const s = new Set(notifDismissed()); (Array.isArray(ids) ? ids : [ids]).forEach(i => s.add(i)); localStorage.setItem('tnr_notif_dismissed', JSON.stringify([...s])); }
+
   function buildNotifs() {
     const out = [];
     DB.getProspectos().forEach(p => {
       if (p.fechaSeguimiento && !['Ganado', 'Perdido'].includes(p.estado)) {
         const d = daysUntil(p.fechaSeguimiento);
-        if (d <= 3) out.push({ tipo: 'Seguimiento', ic: 'bell', color: '#1C9FE2', titulo: `Seguir a ${p.empresa || p.nombre}`, meta: p.proximaAccion || p.estado, fecha: p.fechaSeguimiento, d, action: `TNR.abrirProspecto('${p.id}')` });
+        if (d <= 3) out.push({ id: 'seg:' + p.id, tipo: 'Seguimiento', ic: 'bell', color: '#1C9FE2', titulo: `Seguir a ${p.empresa || p.nombre}`, meta: p.proximaAccion || p.estado, fecha: p.fechaSeguimiento, d, action: `TNR.abrirProspecto('${p.id}')` });
       }
     });
     DB.getTareas().forEach(t => {
       if (t.estado !== 'Finalizada' && t.fecha) {
         const d = daysUntil(t.fecha);
-        if (d <= 3) out.push({ tipo: 'Tarea', ic: 'check-square', color: '#f59e42', titulo: t.titulo, meta: t.responsable, fecha: t.fecha, d, action: `TNR.editarTarea('${t.id}')` });
+        if (d <= 3) out.push({ id: 'tk:' + t.id, tipo: 'Tarea', ic: 'check-square', color: '#f59e42', titulo: t.titulo, meta: t.responsable, fecha: t.fecha, d, action: `TNR.editarTarea('${t.id}')` });
       }
     });
     DB.getClientes().forEach(c => {
@@ -1348,10 +1361,11 @@
       const fin = DB.finanzasCliente(c);
       if (fin.saldo > 0) {
         const venc = fin.estado === 'Vencido';
-        out.push({ tipo: 'Cobro', ic: 'wallet', color: venc ? '#ff5d6c' : '#f59e42', titulo: `Cobrar a ${c.empresa || c.nombre}`, meta: `${fin.estado} · adeuda ${fmtMoney(fin.saldo)}`, fecha: '', d: venc ? -1 : 0, action: `TNR.abrirCliente('${c.id}','facturacion')` });
+        out.push({ id: 'cb:' + c.id, tipo: 'Cobro', ic: 'wallet', color: venc ? '#ff5d6c' : '#f59e42', titulo: `Cobrar a ${c.empresa || c.nombre}`, meta: `${fin.estado} · adeuda ${fmtMoney(fin.saldo)}`, fecha: '', d: venc ? -1 : 0, action: `TNR.abrirCliente('${c.id}','facturacion')` });
       }
     });
-    return out.sort((a, b) => (a.d == null ? 99 : a.d) - (b.d == null ? 99 : b.d));
+    const dis = new Set(notifDismissed());
+    return out.filter(n => !dis.has(n.id)).sort((a, b) => (a.d == null ? 99 : a.d) - (b.d == null ? 99 : b.d));
   }
 
   // Detección de inactividad operativa
@@ -1391,13 +1405,17 @@
         <div class="n-ic" style="background:${n.color}22;color:${n.color}">${icon(n.ic, 18)}</div>
         <div class="n-body"><div class="n-title">${esc(n.titulo)}</div><div class="n-meta">${esc(n.tipo)} · ${esc(n.meta || '')}${metaFecha}</div></div>
         <span class="tag" style="${n.d < 0 ? 'color:#ff5d6c' : n.d === 0 ? 'color:#f5c451' : ''}">${dtxt}</span>
+        <button class="notif-x" title="Descartar" onclick="event.stopPropagation();TNR.dismissNotif('${n.id}')">${icon('x', 15)}</button>
       </div>`;
     }).join('');
 
     view.innerHTML = `
       <div class="view-head">
         <div><h1>Notificaciones</h1><div class="sub">Alertas de inactividad y recordatorios</div></div>
-        <div class="head-actions"><button class="btn-secondary" onclick="TNR.activarNotif()">${icon('bell')}<span class="btn-label"> Activar en este dispositivo</span></button></div>
+        <div class="head-actions">
+          ${list.length ? `<button class="btn-secondary" onclick="TNR.dismissAll()">${icon('trash')}<span class="btn-label"> Limpiar todas</span></button>` : ''}
+          <button class="btn-secondary" onclick="TNR.activarNotif()">${icon('bell')}<span class="btn-label"> Activar en este dispositivo</span></button>
+        </div>
       </div>
 
       <div class="panel-title" style="margin:2px 0 10px">Alertas de inactividad</div>
@@ -1765,9 +1783,9 @@
     volverCliente: (cid, tab) => abrirCliente(cid, tab),
     editarFactura: (cid, fid) => formFactura(cid, fid),
     duplicarFactura: (cid, fid) => { DB.duplicarFactura(cid, fid); toast('Concepto duplicado', 'ok'); abrirCliente(cid, 'facturacion'); },
-    borrarFactura: (cid, fid) => { if (!confirm('¿Seguro que deseas eliminar esta facturación?')) return; DB.eliminarFactura(cid, fid); toast('Facturación eliminada'); abrirCliente(cid, 'facturacion'); },
+    borrarFactura: (cid, fid) => confirmDialog('Eliminar facturación', '¿Seguro que deseas eliminar esta facturación?', 'Eliminar', () => { DB.eliminarFactura(cid, fid); toast('Facturación eliminada'); abrirCliente(cid, 'facturacion'); }, true),
     editarPago: (cid, pid) => formPago(cid, pid),
-    borrarPago: (cid, pid) => { if (!confirm('¿Seguro que deseas eliminar este pago?')) return; DB.eliminarPago(cid, pid); toast('Pago eliminado'); abrirCliente(cid, 'facturacion'); },
+    borrarPago: (cid, pid) => confirmDialog('Eliminar pago', '¿Seguro que deseas eliminar este pago?', 'Eliminar', () => { DB.eliminarPago(cid, pid); toast('Pago eliminado'); abrirCliente(cid, 'facturacion'); }, true),
     nuevaTarea, editarTarea, finalizarTarea, borrarTarea,
     filtrarTareas: (f) => { tareaFiltro = f; renderTareas(); },
     // Calendario
@@ -1781,7 +1799,7 @@
     },
     nuevoEvento: (fecha) => formEvento(null, fecha),
     editarEvento: (id) => formEvento(id),
-    borrarEvento: (id) => { if (!confirm('¿Eliminar este evento?')) return; DB.eliminarEvento(id); closeModal(); toast('Evento eliminado'); if (current === 'calendario') render(); },
+    borrarEvento: (id) => confirmDialog('Eliminar evento', '¿Eliminar este evento?', 'Eliminar', () => { DB.eliminarEvento(id); closeModal(); toast('Evento eliminado'); if (current === 'calendario') render(); }, true),
     // Productividad
     guardarMetas: () => {
       const id = mesId(); const vals = {};
@@ -1792,6 +1810,8 @@
     setTimerCat: (c) => { timer.cat = c; },
     irA: (v) => setView(v),
     activarNotif: () => activarNotificaciones(),
+    dismissNotif: (id) => { notifDismiss(id); if (current === 'notificaciones') renderNotificaciones(); updateNotifBadge(); },
+    dismissAll: () => { const ids = buildNotifs().map(n => n.id); if (!ids.length) return; confirmDialog('Limpiar notificaciones', `¿Descartar las ${ids.length} notificaciones? Podrás volver a verlas si cambian los datos.`, 'Limpiar todas', () => { notifDismiss(ids); if (current === 'notificaciones') renderNotificaciones(); updateNotifBadge(); toast('Notificaciones limpiadas', 'ok'); }); },
     cerrar: closeModal,
   };
 
