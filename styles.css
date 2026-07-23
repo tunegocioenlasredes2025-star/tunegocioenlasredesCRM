@@ -214,6 +214,9 @@ input, select, textarea { font-family: inherit; }
 .ia-motivos ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
 .ia-motivos li { font-size: 13px; padding-left: 16px; position: relative; }
 .ia-motivos li::before { content: '⚠'; position: absolute; left: 0; color: var(--orange); font-size: 11px; }
+.ia-servicio { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+.ia-servicio strong { color: var(--accent); }
+.ia-servicio .ic { color: var(--accent); width: 14px; height: 14px; }
 .msg-canales { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
 .msg-cn.active { border-color: var(--accent); color: var(--accent); background: rgba(28,159,226,.12); }
 .msg-canal-tag { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }

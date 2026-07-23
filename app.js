@@ -890,36 +890,80 @@
     ];
     let falta = 0, total = 0; const motivos = [];
     reglas.forEach(r => { total += r.peso; if (!r.ok) { falta += r.peso; motivos.push(r.falta); } });
-    return { score: total ? Math.round(falta / total * 100) : 0, motivos, fecha: DB.nowISO() };
+    return { score: total ? Math.round(falta / total * 100) : 0, motivos, servicio: servicioRecomendado(p), fecha: DB.nowISO() };
   }
 
   function renderIaBox(p) {
     if (!p.analisis) return `<div class="cell-dim" style="font-size:12.5px">Tocá <strong>Analizar negocio</strong> para calcular el score de oportunidad y ver qué le falta.</div>`;
     const a = p.analisis;
     const col = a.score >= 70 ? '#3ecf8e' : a.score >= 45 ? '#f5c451' : '#ff5d6c';
+    const svc = a.servicio || servicioRecomendado(p);
     return `<div class="ia-result">
       <div class="ia-score" style="color:${col}">${a.score}<span>/100</span><small>oportunidad</small></div>
       <div class="ia-motivos">
         <div class="ia-label">Oportunidades detectadas</div>
         ${a.motivos.length ? `<ul>${a.motivos.map(m => `<li>${esc(m)}</li>`).join('')}</ul>` : '<div class="cell-dim" style="font-size:12.5px">Tiene una presencia digital sólida. Buen candidato para mantenimiento/mejoras.</div>'}
+        <div class="ia-servicio">${icon('target', 14)} Servicio recomendado: <strong>${esc(svc)}</strong></div>
       </div>
     </div>`;
   }
 
+  // --- Generación de mensajes natural (P1+P2): usa datos reales del prospecto ---
+  function reseñasDe(p) {
+    const m = String(p.observaciones || '').match(/([\d][\d.]*)\s*rese/i);
+    if (!m) return null;
+    const n = parseInt(m[1].replace(/\./g, ''), 10);
+    return n > 0 ? n : null;
+  }
+  function nombreNat(p) {
+    let n = String(p.empresa || p.nombre || 'tu negocio').trim();
+    if (!/\s/.test(n) && /[._]/.test(n)) n = n.replace(/[._]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+    return n;
+  }
+  function rubroNat(p) { const r = String(p.rubro || '').toLowerCase().trim(); return r || 'negocios como el suyo'; }
+  // Servicio recomendado (P2): nunca vacío; ante la duda, Página Web.
+  function servicioRecomendado(p) {
+    const web = tieneWeb(p), ig = tieneIG(p);
+    const obs = String(p.observaciones || '').toLowerCase();
+    if (!web) return 'Página Web';
+    if (!ig || /abandonad|sin contenido|no public|redes flojas|poco contenido/.test(obs)) return 'Gestión de Redes';
+    if (/reserva|turno|whatsapp manual|agenda|muchos clientes|recordatori/.test(obs)) return 'CRM';
+    return (p.servicios && p.servicios[0]) || 'Página Web';
+  }
+  // Frase de oportunidad concreta según lo que le falta.
+  function oportunidadNat(p) {
+    const r = reseñasDe(p), web = tieneWeb(p), ig = tieneIG(p);
+    if (!web && r) return `vi que tienen muy buenas reseñas en Google (más de ${r}), pero no encontré una página web donde muestren todos sus servicios y faciliten el contacto`;
+    if (!web) return `vi que todavía no tienen una página web donde mostrar sus servicios y que los clientes los contacten fácil`;
+    if (!ig) return `vi que tienen buena reputación, pero no encontré un Instagram activo para mostrar el día a día y atraer clientes nuevos`;
+    return `creo que hay margen para ordenar la operación y aprovechar mejor a sus clientes actuales`;
+  }
+  function ofertaNat(servicio, rubro) {
+    switch (servicio) {
+      case 'Gestión de Redes': return `Justamente nos dedicamos a la gestión de redes de ${rubro}: contenido, diseño y más consultas.`;
+      case 'CRM': return `Justamente les armamos un sistema para ordenar los turnos/clientes que hoy manejan por WhatsApp y no perder ventas.`;
+      case 'SaaS': return `Justamente desarrollamos el sistema de reservas/gestión para ${rubro}, para que no dependan del WhatsApp manual.`;
+      case 'Aplicación Web': case 'App personalizada': return `Justamente desarrollamos apps a medida para automatizar procesos y escalar.`;
+      default: return `Justamente ayudamos a ${rubro} a tener una página web profesional y conseguir más consultas.`;
+    }
+  }
+
   function generarMensaje(p, canal) {
     const emp = p.empresa || p.nombre || 'tu negocio';
-    const rubro = (p.rubro || '').toLowerCase();
-    const need = ((p.analisis && p.analisis.motivos && p.analisis.motivos[0]) || 'potenciar su presencia online').toLowerCase();
-    const paraRubro = rubro ? `a ${rubro}` : 'a negocios';
+    const nombre = nombreNat(p);
+    const rubro = rubroNat(p);
+    const servicio = servicioRecomendado(p);
+    const intro = `Estuve viendo su perfil y ${oportunidadNat(p)}.`;
+    const oferta = ofertaNat(servicio, rubro);
     switch (canal) {
       case 'WhatsApp':
-        return `¡Hola ${emp}! 👋 Soy de ${AGENCIA}. Estuve viendo su presencia online y noté que ${need}. Justamente ayudamos ${paraRubro} como el suyo a resolver eso y conseguir más clientes. ¿Les interesaría que les muestre una idea rápida, sin compromiso?`;
+        return `Hola ${nombre} 👋 Soy de ${AGENCIA}. ${intro} ${oferta} ¿Les interesaría que les muestre una idea sin compromiso?`;
       case 'Instagram':
-        return `¡Hola! Me encantó el perfil de ${emp} 🙌 Trabajo en ${AGENCIA} y detecté una oportunidad concreta: ${need}. ¿Te comparto una propuesta para potenciarlo?`;
+        return `¡Hola ${nombre}! Soy de ${AGENCIA} 🙌 ${intro} ${oferta} ¿Te muestro una propuesta sin compromiso?`;
       case 'Email':
-        return `Asunto: Una idea para ${emp}\n\nHola equipo de ${emp},\n\nMi nombre es [Tu nombre], de ${AGENCIA}. Analizando su presencia digital detecté que ${need}, algo que hoy les puede estar costando clientes.\n\nMe encantaría mostrarles en 15 minutos cómo resolverlo. ¿Tienen disponibilidad esta semana?\n\nSaludos,\n[Tu nombre] — ${AGENCIA}`;
+        return `Asunto: Una idea para ${emp}\n\nHola equipo de ${emp},\n\nSoy [Tu nombre], de ${AGENCIA}. ${intro} ${oferta}\n\n¿Tienen 15 minutos esta semana para que les muestre una propuesta concreta, sin compromiso?\n\nSaludos,\n[Tu nombre] — ${AGENCIA}`;
       case 'Llamada':
-        return `GUION DE LLAMADA EN FRÍO\n\nApertura: "Hola, ¿hablo con ${emp}? Te llamo de ${AGENCIA}."\nGancho: "Estuve viendo su presencia online y noté que ${need}."\nPregunta: "¿Hoy cómo están consiguiendo clientes nuevos?"\nCierre: "Te propongo una reunión de 15 minutos para mostrarte una solución concreta. ¿Te viene bien mañana?"`;
+        return `GUION DE LLAMADA\n\nApertura: "Hola, ¿hablo con ${emp}? Te llamo de ${AGENCIA}."\nGancho: "${intro}"\nValor: "${oferta}"\nPregunta: "¿Hoy cómo están consiguiendo clientes nuevos?"\nCierre: "Te propongo una reunión de 15 minutos para mostrarte una idea concreta. ¿Te viene bien mañana?"`;
     }
     return '';
   }
