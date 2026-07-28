@@ -259,6 +259,8 @@ tbody tr:hover .row-actions { opacity: 1; }
 .tag { display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 11px; font-weight: 600; background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); }
 .tag-svc { background: rgba(28,159,226,.12); color: var(--accent); border-color: rgba(28,159,226,.35); }
 .svc-tags { display: flex; flex-wrap: wrap; gap: 4px; max-width: 260px; }
+/* Segmento / campaña (Mundo Ferretero) */
+.tag-seg { display: inline-block; margin-top: 4px; background: rgba(240,124,32,.14); color: #f07c20; border-color: rgba(240,124,32,.4); font-size: 11px; }
 
 /* ===== Forms ===== */
 .lbl-hint { color: var(--text-faint); font-weight: 400; }

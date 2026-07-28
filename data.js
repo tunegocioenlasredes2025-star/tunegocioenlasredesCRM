@@ -31,6 +31,13 @@
   const ESTADOS_TAREA = ['Pendiente', 'En Curso', 'Finalizada'];
   const PRIORIDADES = ['Baja', 'Media', 'Alta', 'Urgente'];
 
+  // Segmentos / campañas especiales. Permiten agrupar prospectos de un proyecto puntual.
+  const SEG_MF = 'Mundo Ferretero';
+  const SEGMENTOS = [
+    `${SEG_MF} · Ferreterías para visitar`,
+    `${SEG_MF} · Empresas para pauta`,
+  ];
+
   // Servicio Principal del prospecto (qué le queremos vender). Un prospecto puede tener uno o varios.
   const SERVICIOS_PRINCIPAL = [
     'Página Web', 'Landing Page', 'Gestión de Redes', 'CRM', 'SaaS', 'Aplicación Web',
@@ -279,7 +286,7 @@
       nombre: '', empresa: '', rubro: '', ciudad: '', provincia: '', pais: 'Argentina',
       telefono: '', whatsapp: '', email: '', instagram: '', facebook: '', linkedin: '', sitioWeb: '',
       metodoContacto: '', estado: 'Prospecto', observaciones: '',
-      servicios: [], prioridad: '',
+      servicios: [], prioridad: '', segmento: '',
       proximaAccion: '', fechaSeguimiento: '', responsable: '', historial: [],
     }, d);
     if (!p.historial.length) p.historial.push({ tipo: 'Nota', texto: 'Prospecto creado', fecha: nowISO() });
@@ -611,7 +618,7 @@
 
   /* ---------- API pública ---------- */
   window.DB = {
-    METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL,
+    METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF,
     clasificarServicios, prioridadDe, migrarServicios,
     CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
     catEvento: (id) => CATEGORIAS_EVENTO.find(c => c.id === id) || CATEGORIAS_EVENTO[0],
