@@ -283,7 +283,7 @@
   function crearProspecto(d) {
     const p = Object.assign({
       id: uid('PR'), fechaCreacion: nowISO(),
-      nombre: '', empresa: '', rubro: '', ciudad: '', provincia: '', pais: 'Argentina',
+      nombre: '', empresa: '', rubro: '', direccion: '', ciudad: '', provincia: '', pais: 'Argentina',
       telefono: '', whatsapp: '', email: '', instagram: '', facebook: '', linkedin: '', sitioWeb: '',
       metodoContacto: '', estado: 'Prospecto', observaciones: '',
       servicios: [], prioridad: '', segmento: '',

@@ -414,6 +414,7 @@
         ${f('nombre', 'Nombre del contacto')}
         ${f('empresa', 'Empresa')}
         ${f('rubro', 'Rubro')}
+        ${f('direccion', 'Dirección')}
         ${f('ciudad', 'Ciudad')}
         ${f('telefono', 'Teléfono', 'tel')}
         ${f('whatsapp', 'WhatsApp', 'tel')}
@@ -830,6 +831,7 @@
       <div class="form-grid">
         ${fila('Contacto', esc(p.nombre) || '—')}
         ${fila('Empresa', esc(p.empresa) || '—')}
+        ${fila('Dirección', p.direccion ? link(p.direccion, 'https://www.google.com/maps/search/' + encodeURIComponent(p.direccion + ' ' + (p.ciudad || ''))) : '—')}
         ${fila('Ciudad', [p.ciudad, p.provincia].filter(Boolean).map(esc).join(', ') || '—')}
         ${fila('Método de contacto', esc(p.metodoContacto) || '—')}
         ${fila('Teléfono', esc(p.telefono) || '—')}
