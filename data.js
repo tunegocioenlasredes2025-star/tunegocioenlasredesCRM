@@ -286,7 +286,7 @@
       nombre: '', empresa: '', rubro: '', direccion: '', ciudad: '', provincia: '', pais: 'Argentina',
       telefono: '', whatsapp: '', email: '', instagram: '', facebook: '', linkedin: '', sitioWeb: '',
       metodoContacto: '', estado: 'Prospecto', observaciones: '',
-      servicios: [], prioridad: '', segmento: '',
+      servicios: [], prioridad: '', segmento: '', mensaje: '',
       proximaAccion: '', fechaSeguimiento: '', responsable: '', historial: [],
     }, d);
     if (!p.historial.length) p.historial.push({ tipo: 'Nota', texto: 'Prospecto creado', fecha: nowISO() });

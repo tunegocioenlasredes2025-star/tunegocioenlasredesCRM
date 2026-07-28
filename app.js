@@ -430,6 +430,7 @@
           <div class="chips-check">${DB.SERVICIOS_PRINCIPAL.map(s => `<label class="chip-check"><input type="checkbox" name="servicios" value="${esc(s)}" ${(p.servicios || []).includes(s) ? 'checked' : ''} /><span>${esc(s)}</span></label>`).join('')}</div>
         </div>
         ${f('proximaAccion', 'Próxima acción', 'text', true)}
+        <div class="field full"><label>Mensaje personalizado <span class="lbl-hint">(si lo cargás, es el que sale en "Generar mensaje")</span></label><textarea name="mensaje">${esc(p.mensaje || '')}</textarea></div>
         <div class="field full"><label>Observaciones</label><textarea name="observaciones">${esc(p.observaciones || '')}</textarea></div>
       </div>
       <div class="form-foot">
@@ -853,7 +854,7 @@
       <div class="divider"></div>
       <div style="margin-bottom:8px"><strong style="font-size:13px">${icon('message-square')} Generar mensaje</strong></div>
       <div class="msg-canales">
-        ${['WhatsApp', 'Instagram', 'Email', 'Llamada'].map(cn => `<button class="btn-secondary msg-cn" data-canal="${cn}" style="padding:6px 11px;font-size:12px" onclick="TNR.genMensaje('${p.id}','${cn}')">${cn}</button>`).join('')}
+        ${canalesDe(p).map(cn => `<button class="btn-secondary msg-cn" data-canal="${cn}" style="padding:6px 11px;font-size:12px" onclick="TNR.genMensaje('${p.id}','${cn}')">${cn}</button>`).join('')}
       </div>
       <div id="msgBox"></div>
       <div class="divider"></div>
@@ -880,6 +881,20 @@
     };
     $('#btnNote').onclick = addNote;
     $('#noteText').onkeydown = (e) => { if (e.key === 'Enter') addNote(); };
+    // El mensaje ya sale armado en el canal principal del prospecto (no hay que buscarlo en observaciones)
+    genMensaje(id, canalesDe(p)[0]);
+  }
+
+  // Canal principal según el prospecto: pauta → Email; método Instagram → Instagram; si no, WhatsApp.
+  function canalesDe(p) {
+    const todos = ['WhatsApp', 'Instagram', 'Email', 'Llamada'];
+    const met = String(p.metodoContacto || '').toLowerCase();
+    let pref = 'WhatsApp';
+    if (esPauta(p) || /mail/.test(met)) pref = 'Email';
+    else if (/instagram/.test(met)) pref = 'Instagram';
+    else if (/llamada|visita|cold/.test(met)) pref = 'Llamada';
+    else if (!tieneWA(p) && p.email) pref = 'Email';
+    return [pref].concat(todos.filter(c => c !== pref));
   }
 
   function convertirCliente(id) {
@@ -943,8 +958,23 @@
     return n;
   }
   function rubroNat(p) { const r = String(p.rubro || '').toLowerCase().trim(); return r || 'negocios como el suyo'; }
+
+  /* --- Campaña Mundo Ferretero: planes de pauta vigentes --- */
+  const MF_MAIL = 'comercial@mundoferretero.com.ar';
+  const MF_PLANES = [
+    ['Presencia', 'u$s200/mes', 'Banner en Home + Banner en mailings + Reporte mensual básico'],
+    ['Profesional', 'u$s350/mes', 'Todo lo de Presencia + Nota destacada en el portal + Mailing exclusivo + Reporte mensual de resultados'],
+    ['Premium', 'u$s450/mes', 'Todo lo de Profesional + Entrevista personalizada + Informe de mercado + Encuesta patrocinada + Reporte mensual completo'],
+  ];
+  const esPauta = (p) => String(p.segmento || '').indexOf('Empresas para pauta') >= 0;
+  function asuntoMail(p) {
+    const emp = p.empresa || p.nombre || '';
+    return esPauta(p) ? `Pauta en Mundo Ferretero — ${emp}`.trim() : `Una idea para ${emp}`.trim();
+  }
+
   // Servicio recomendado (P2): nunca vacío; ante la duda, Página Web.
   function servicioRecomendado(p) {
+    if (esPauta(p)) return 'Pauta en Mundo Ferretero';
     const web = tieneWeb(p), ig = tieneIG(p);
     const obs = String(p.observaciones || '').toLowerCase();
     if (!web) return 'Página Web';
@@ -975,6 +1005,25 @@
     const nombre = nombreNat(p);
     const rubro = rubroNat(p);
     const servicio = servicioRecomendado(p);
+
+    // 1) Mensaje propio cargado en el prospecto (campañas: Mundo Ferretero, etc.)
+    if (p.mensaje) {
+      const cuerpo = String(p.mensaje).trim();
+      const firma = esPauta(p) ? `Mundo Ferretero · ${MF_MAIL}` : AGENCIA;
+      if (canal === 'Email') return `Asunto: ${asuntoMail(p)}\n\n${cuerpo}\n\nSaludos,\n[Tu nombre]\n${firma}`;
+      if (canal === 'Llamada') return `GUION DE LLAMADA\n\nApertura: "${cuerpo}"\n\nSi piden más info:\n${MF_PLANES.map(x => `· ${x[0]} (${x[1]}): ${x[2]}`).join('\n')}\n\nCierre: "Le mando la info por mail y coordinamos una reunión de 15 minutos."`;
+      return cuerpo;
+    }
+
+    // 2) Fallback para empresas de pauta sin mensaje propio: se vende PAUTA, no servicios de agencia.
+    if (esPauta(p)) {
+      const pitch = `Les escribo de Mundo Ferretero, el medio del canal ferretero (mundoferretero.com.ar). Publicamos contenido para dueños de ferreterías: gestión, productos y tendencias. ${emp} le vende justamente a ese público, por eso quería proponerles una reunión breve para mostrarles nuestro alcance y las opciones de pauta.`;
+      const planes = MF_PLANES.map(x => `· Plan ${x[0]} — ${x[1]}: ${x[2]}`).join('\n');
+      if (canal === 'Email') return `Asunto: ${asuntoMail(p)}\n\nHola equipo de ${emp},\n\n${pitch}\n\nLos planes son:\n${planes}\n\n¿Tienen 15 minutos esta semana?\n\nSaludos,\n[Tu nombre]\nMundo Ferretero · ${MF_MAIL}`;
+      if (canal === 'Llamada') return `GUION DE LLAMADA\n\nApertura: "Hola, ¿hablo con ${emp}? Le llamo de Mundo Ferretero, el medio del canal ferretero."\nGancho: "${pitch}"\nPlanes:\n${planes}\nCierre: "Le mando la info por mail y coordinamos una reunión de 15 minutos."`;
+      return `Hola, les escribo de Mundo Ferretero, el medio del canal ferretero. ${pitch}`;
+    }
+
     const intro = `Estuve viendo su perfil y ${oportunidadNat(p)}.`;
     const oferta = ofertaNat(servicio, rubro);
     switch (canal) {
@@ -994,7 +1043,7 @@
     const wa = waNum(p.whatsapp || p.telefono);
     let abrir = '';
     if (canal === 'WhatsApp' && wa) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="https://wa.me/${wa}?text=${encodeURIComponent(txt)}">${icon('whatsapp')} Abrir WhatsApp</a>`;
-    else if (canal === 'Email' && p.email) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="mailto:${esc(p.email)}?subject=${encodeURIComponent('Una idea para ' + (p.empresa || ''))}&body=${encodeURIComponent(txt)}">${icon('mail')} Abrir Email</a>`;
+    else if (canal === 'Email' && p.email) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="mailto:${esc(p.email)}?subject=${encodeURIComponent(asuntoMail(p))}&body=${encodeURIComponent(txt.replace(/^Asunto:.*\n+/, ''))}">${icon('mail')} Abrir Email</a>`;
     else if (canal === 'Instagram' && p.instagram) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="https://instagram.com/${esc(String(p.instagram).replace('@', ''))}">${icon('instagram')} Abrir Instagram</a>`;
     return `<div class="msg-canal-tag">${esc(canal)}</div>
       <textarea id="msgText" class="msg-text">${esc(txt)}</textarea>
