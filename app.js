@@ -285,7 +285,8 @@
   /* ============================================================
      PROSPECTOS
      ============================================================ */
-  const tieneWA = p => !!(p.whatsapp && !/^no\b|^no\s|sin\b|tel fijo/i.test(String(p.whatsapp).trim()));
+  // "vía IG @handle" NO es WhatsApp: esos prospectos se contactan por Instagram.
+  const tieneWA = p => !!(p.whatsapp && !/^no\b|^no\s|sin\b|tel fijo|v[ií]a ig|via ig|solo ig|por ig\b|instagram/i.test(String(p.whatsapp).trim()));
   const tieneIG = p => !!(p.instagram && !/^no\b|no confirm|no encontrado/i.test(String(p.instagram).trim()));
   const tieneWeb = p => !!(p.sitioWeb && !/^no\b|no tiene|no encontr/i.test(String(p.sitioWeb).trim()));
 
@@ -390,7 +391,7 @@
           <td data-label="Prioridad">${p.prioridad ? prioridadChip(p.prioridad) : '<span class="cell-dim">—</span>'}</td>
           <td data-label="Seguimiento">${segTag}</td>
           <td data-label=""><div class="row-actions" onclick="event.stopPropagation()">
-            ${p.whatsapp ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="https://wa.me/${waNum(p.whatsapp)}">${icon('whatsapp')}</a>` : ''}
+            ${tieneWA(p) ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="${waHref(p.whatsapp)}">${icon('whatsapp')}</a>` : ''}
             <button class="icon-btn" title="Editar" onclick="TNR.editarProspecto('${p.id}')">${icon('edit')}</button>
             <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarProspecto('${p.id}')">${icon('trash')}</button>
           </div></td>
@@ -399,6 +400,15 @@
     </table></div>`;
   }
   function waNum(s) { return String(s).replace(/\D/g, '').replace(/^0/, '').replace(/^15/, '11'); }
+  // El WhatsApp puede venir como número o como link (wa.me, wa.link, linktr.ee…): devolvemos el href correcto.
+  function waHref(v, texto) {
+    const s = String(v || '').trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s)) return s;
+    if (/^(wa\.me|wa\.link|api\.whatsapp|chat\.whatsapp|linktr\.ee|taplink|bit\.ly|goo\.su)/i.test(s)) return 'https://' + s;
+    const n = waNum(s);
+    return n ? `https://wa.me/${n}${texto ? '?text=' + encodeURIComponent(texto) : ''}` : '';
+  }
 
   /* ---------- Formulario de prospecto (manual) ---------- */
   function formProspecto(p) {
@@ -825,7 +835,7 @@
           <select id="estadoQuick" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:8px;font-size:12px">
             ${DB.ESTADOS_LEAD.map(e => `<option ${e.id === p.estado ? 'selected' : ''}>${e.id}</option>`).join('')}
           </select>
-          ${p.whatsapp ? `<a class="btn-secondary" target="_blank" href="https://wa.me/${waNum(p.whatsapp)}" style="padding:6px 12px">${icon('whatsapp')} WhatsApp</a>` : ''}
+          ${tieneWA(p) ? `<a class="btn-secondary" target="_blank" href="${waHref(p.whatsapp)}" style="padding:6px 12px">${icon('whatsapp')} WhatsApp</a>` : ''}
           <button class="btn-secondary" style="padding:6px 12px" onclick="TNR.editarProspecto('${p.id}')">${icon('edit')} Editar</button>
         </div>
       </div>
@@ -1042,7 +1052,7 @@
   function renderMsgBox(p, canal, txt) {
     const wa = waNum(p.whatsapp || p.telefono);
     let abrir = '';
-    if (canal === 'WhatsApp' && wa) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="https://wa.me/${wa}?text=${encodeURIComponent(txt)}">${icon('whatsapp')} Abrir WhatsApp</a>`;
+    if (canal === 'WhatsApp' && wa) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="${waHref(p.whatsapp || p.telefono, txt)}">${icon('whatsapp')} Abrir WhatsApp</a>`;
     else if (canal === 'Email' && p.email) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="mailto:${esc(p.email)}?subject=${encodeURIComponent(asuntoMail(p))}&body=${encodeURIComponent(txt.replace(/^Asunto:.*\n+/, ''))}">${icon('mail')} Abrir Email</a>`;
     else if (canal === 'Instagram' && p.instagram) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="https://instagram.com/${esc(String(p.instagram).replace('@', ''))}">${icon('instagram')} Abrir Instagram</a>`;
     return `<div class="msg-canal-tag">${esc(canal)}</div>
