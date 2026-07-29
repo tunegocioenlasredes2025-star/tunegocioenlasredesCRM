@@ -133,11 +133,23 @@
     async pullAll() {
       // Resiliente por tabla: si una tabla nueva todavía no existe en Supabase,
       // se omite sin romper la sincronización del resto.
+      // OJO: Supabase corta en 1000 filas por consulta. Sin paginar, al pasar los
+      // 1000 prospectos la app dejaba de ver los últimos SIN avisar. Por eso se
+      // trae de a 1000 con .range() hasta que la página vuelve incompleta.
+      const PAGE = 1000;
       for (const t of TABLES) {
         try {
-          const { data, error } = await this.client.from(t).select('id,data').order('updated_at', { ascending: false });
-          if (error) throw error;
-          cache[t] = (data || []).map(r => r.data);
+          const filas = [];
+          for (let desde = 0; ; desde += PAGE) {
+            const { data, error } = await this.client.from(t)
+              .select('id,data')
+              .order('updated_at', { ascending: false })
+              .range(desde, desde + PAGE - 1);
+            if (error) throw error;
+            filas.push(...(data || []));
+            if (!data || data.length < PAGE) break;
+          }
+          cache[t] = filas.map(r => r.data);
         } catch (e) { console.warn('Tabla no disponible aún: ' + t + ' (¿falta correr el SQL?)', e && e.message); }
       }
     },
