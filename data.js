@@ -38,6 +38,14 @@
     `${SEG_MF} · Empresas para pauta`,
   ];
 
+  // Cómo vamos a atacar al prospecto. VISITA y WHATSAPP son para ferreterías;
+  // PAUTA es para las empresas a las que les vendemos espacio en la revista.
+  const CANALES = [
+    { id: 'VISITA',   color: '#3ecf8e' },
+    { id: 'WHATSAPP', color: '#25d366' },
+    { id: 'PAUTA',    color: '#f59e42' },
+  ];
+
   // Servicio Principal del prospecto (qué le queremos vender). Un prospecto puede tener uno o varios.
   const SERVICIOS_PRINCIPAL = [
     'Página Web', 'Landing Page', 'Gestión de Redes', 'CRM', 'SaaS', 'Aplicación Web',
@@ -287,6 +295,9 @@
       telefono: '', whatsapp: '', email: '', instagram: '', facebook: '', linkedin: '', sitioWeb: '',
       metodoContacto: '', estado: 'Prospecto', observaciones: '',
       servicios: [], prioridad: '', segmento: '', mensaje: '',
+      // Prospección de campo: cómo lo atacamos, cuánto vale y con qué frase entramos.
+      canal: '', oportunidad: '', gancho: '',
+      maps: '', horarios: '', puntuacion: '', reseñas: '',
       proximaAccion: '', fechaSeguimiento: '', responsable: '', historial: [],
     }, d);
     if (!p.historial.length) p.historial.push({ tipo: 'Nota', texto: 'Prospecto creado', fecha: nowISO() });
@@ -591,6 +602,25 @@
      EXPORT / IMPORT / RESET
      ============================================================ */
   function exportar() { return JSON.stringify(load(), null, 2); }
+
+  /* Carga masiva NO destructiva: agrega prospectos sin pisar los existentes.
+     Sirve para importar bases de prospección (ferreterías, empresas de pauta).
+     Deduplica por empresa + ciudad, así se puede reimportar sin generar duplicados. */
+  function importarProspectos(arr) {
+    if (!Array.isArray(arr)) throw new Error('Se esperaba una lista de prospectos');
+    const clave = (e, c) => (String(e || '').trim().toLowerCase() + '|' + String(c || '').trim().toLowerCase());
+    const existentes = new Set(load().prospectos.map(p => clave(p.empresa, p.ciudad)));
+    let creados = 0, omitidos = 0;
+    arr.forEach(d => {
+      if (!d || (!d.empresa && !d.nombre)) { omitidos++; return; }
+      if (existentes.has(clave(d.empresa, d.ciudad))) { omitidos++; return; }
+      crearProspecto(d);
+      existentes.add(clave(d.empresa, d.ciudad));
+      creados++;
+    });
+    return { creados, omitidos };
+  }
+
   function importar(json) {
     const data = JSON.parse(json);
     if (!data || typeof data !== 'object') throw new Error('Archivo inválido');
@@ -619,6 +649,7 @@
   /* ---------- API pública ---------- */
   window.DB = {
     METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF,
+    CANALES, canalColor: (id) => (CANALES.find(c => c.id === id) || {}).color || '#8b94a8',
     clasificarServicios, prioridadDe, migrarServicios,
     CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
     catEvento: (id) => CATEGORIAS_EVENTO.find(c => c.id === id) || CATEGORIAS_EVENTO[0],
@@ -633,7 +664,7 @@
     registrarPago, actualizarPago, eliminarPago, finanzasCliente,
     agregarHistorialCliente,
     getTareas, crearTarea, actualizarTarea, eliminarTarea,
-    exportar, importar, reset, seedIfEmpty, nowISO,
+    exportar, importar, importarProspectos, reset, seedIfEmpty, nowISO,
     init, get cloudEnabled() { return Cloud.enabled; }, onRemoteChange: null,
   };
 })();

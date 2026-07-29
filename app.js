@@ -71,6 +71,17 @@
     const c = DB.estadoColor(estado);
     return `<span class="chip" style="background:${c}22;color:${c}"><span class="chip-dot" style="background:${c}"></span>${esc(estado)}</span>`;
   }
+  function canalChip(canal) {
+    if (!canal) return '<span class="cell-dim">—</span>';
+    const c = DB.canalColor(canal);
+    return `<span class="chip" style="background:${c}22;color:${c}"><span class="chip-dot" style="background:${c}"></span>${esc(canal)}</span>`;
+  }
+  function oportunidadCell(v) {
+    const n = Number(v);
+    if (!n) return '<span class="cell-dim">—</span>';
+    const c = n >= 85 ? '#3ecf8e' : n >= 70 ? '#f5c451' : '#8b94a8';
+    return `<span class="opor-badge" style="color:${c};border-color:${c}55;background:${c}18">${n}</span>`;
+  }
   function prioridadChip(p) {
     const map = { 'Baja': '#8b94a8', 'Media': '#5b8cff', 'Alta': '#f59e42', 'Urgente': '#ff5d6c' };
     const c = map[p] || '#8b94a8';
@@ -85,7 +96,7 @@
   /* ---------- Estado de la app ---------- */
   let current = 'dashboard';
   let searchTerm = '';
-  const pFilters = { q: '', segmento: '', rubro: '', servicio: '', ciudad: '', estado: '', metodo: '', prioridad: '', responsable: '', wa: '', ig: '', web: '' };
+  const pFilters = { q: '', segmento: '', canal: '', rubro: '', servicio: '', ciudad: '', estado: '', metodo: '', prioridad: '', responsable: '', wa: '', ig: '', web: '' };
   let pPage = 1;
   const PAGE = 50;
 
@@ -303,6 +314,7 @@
       (!pFilters.wa || (pFilters.wa === 'si' ? tieneWA(p) : !tieneWA(p))) &&
       (!pFilters.ig || (pFilters.ig === 'si' ? tieneIG(p) : !tieneIG(p))) &&
       (!pFilters.web || (pFilters.web === 'si' ? tieneWeb(p) : !tieneWeb(p))) &&
+      (!pFilters.canal || p.canal === pFilters.canal) &&
       (!pFilters.segmento || (pFilters.segmento === '_MF' ? (p.segmento || '').startsWith(DB.SEG_MF) : p.segmento === pFilters.segmento)) &&
       (!q || [p.empresa, p.nombre, p.rubro, p.ciudad, p.instagram, p.whatsapp, p.observaciones, p.segmento, (p.servicios || []).join(' ')].some(v => (v || '').toLowerCase().includes(q)))
     );
@@ -319,6 +331,7 @@
       <div class="view-head">
         <div><h1>Prospectos</h1><div class="sub">CRM de prospectos · ${all.length} en base</div></div>
         <div class="head-actions">
+          <button class="btn-secondary" onclick="TNR.importarBase()">${icon('upload')} Importar base</button>
           <button class="btn-secondary" onclick="TNR.nuevoProspectoChat()">${icon('sparkles')} Chat inteligente</button>
           <button class="btn-primary" onclick="TNR.nuevoProspecto()">${icon('plus')}Nuevo prospecto</button>
         </div>
@@ -327,6 +340,7 @@
       <div class="filters">
         <div class="filter-search"><span class="search-ic" data-ic="search"></span><input type="search" id="pSearch" placeholder="Buscar en resultados…" value="${esc(pFilters.q)}" autocomplete="off" /></div>
         ${segmentoFilter(pFilters.segmento)}
+        ${selectFilter('canal', 'Canal', DB.CANALES.map(c => c.id), pFilters.canal)}
         ${selectFilter('servicio', 'Servicio', DB.SERVICIOS_PRINCIPAL, pFilters.servicio)}
         ${selectFilter('rubro', 'Rubro', rubros, pFilters.rubro)}
         ${selectFilter('prioridad', 'Prioridad', DB.PRIORIDADES, pFilters.prioridad)}
@@ -377,13 +391,15 @@
 
   function tablaProspectos(list) {
     return `<div class="table-wrap"><table>
-      <thead><tr><th>Empresa / Contacto</th><th>Rubro</th><th>Servicio</th><th>Ciudad</th><th>Estado</th><th>Prioridad</th><th>Seguimiento</th><th></th></tr></thead>
+      <thead><tr><th>Empresa / Contacto</th><th>Canal</th><th>Oport.</th><th>Rubro</th><th>Servicio</th><th>Ciudad</th><th>Estado</th><th>Prioridad</th><th>Seguimiento</th><th></th></tr></thead>
       <tbody>${list.map(p => {
         const d = daysUntil(p.fechaSeguimiento);
         const segTag = p.fechaSeguimiento ? (d < 0 ? `<span class="tag" style="color:#ff5d6c">${fmtDate(p.fechaSeguimiento)}</span>` : d === 0 ? `<span class="tag" style="color:#f5c451">hoy</span>` : fmtDate(p.fechaSeguimiento)) : '<span class="cell-dim">—</span>';
         const svc = (p.servicios || []).length ? (p.servicios || []).map(s => `<span class="tag tag-svc">${esc(s)}</span>`).join('') : '<span class="cell-dim">—</span>';
         return `<tr onclick="TNR.abrirProspecto('${p.id}')">
           <td data-label="Empresa"><div class="cell-strong">${esc(p.empresa || p.nombre || 'Sin nombre')}</div>${p.empresa && p.nombre ? `<div class="cell-dim">${esc(p.nombre)}</div>` : ''}${p.segmento ? `<span class="tag tag-seg">${esc(p.segmento.replace(`${DB.SEG_MF} · `, 'MF · '))}</span>` : ''}</td>
+          <td data-label="Canal">${canalChip(p.canal)}</td>
+          <td data-label="Oportunidad">${oportunidadCell(p.oportunidad)}</td>
           <td data-label="Rubro">${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : '<span class="cell-dim">—</span>'}</td>
           <td data-label="Servicio"><div class="svc-tags">${svc}</div></td>
           <td data-label="Ciudad" class="cell-dim">${esc(p.ciudad) || '—'}</td>
@@ -435,6 +451,12 @@
         ${sel('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id))}
         ${sel('prioridad', 'Prioridad', ['', ...DB.PRIORIDADES])}
         ${sel('segmento', 'Segmento / campaña', ['', ...DB.SEGMENTOS], true)}
+        ${sel('canal', 'Canal', ['', ...DB.CANALES.map(c => c.id)])}
+        <div class="field"><label>Nivel de oportunidad <span class="lbl-hint">(0-100)</span></label>
+        <input type="number" name="oportunidad" min="0" max="100" value="${esc(p.oportunidad || '')}" /></div>
+        ${f('maps', 'Google Maps')}
+        ${f('horarios', 'Horarios')}
+        ${f('gancho', 'Gancho de venta', 'text', true)}
         <div class="field"><label>Fecha de seguimiento</label><input type="date" name="fechaSeguimiento" value="${esc(p.fechaSeguimiento || '')}" /></div>
         <div class="field full"><label>Servicio principal <span class="lbl-hint">(uno o varios)</span></label>
           <div class="chips-check">${DB.SERVICIOS_PRINCIPAL.map(s => `<label class="chip-check"><input type="checkbox" name="servicios" value="${esc(s)}" ${(p.servicios || []).includes(s) ? 'checked' : ''} /><span>${esc(s)}</span></label>`).join('')}</div>
@@ -849,11 +871,17 @@
         ${fila('WhatsApp', esc(p.whatsapp) || '—')}
         ${fila('Email', p.email ? link(p.email, 'mailto:' + p.email) : '—')}
         ${fila('Instagram', p.instagram ? link(p.instagram, 'https://instagram.com/' + p.instagram.replace('@', '')) : '—')}
-        ${fila('Sitio web', p.sitioWeb ? link(p.sitioWeb, (p.sitioWeb.startsWith('http') ? '' : 'https://') + p.sitioWeb) : '—')}
+        ${fila('Sitio web', p.sitioWeb ? link(p.sitioWeb, (p.sitioWeb.startsWith('http') ? '' : 'https://') + p.sitioWeb) : '<strong style="color:#3ecf8e">Sin web — oportunidad</strong>')}
+        ${fila('Canal', canalChip(p.canal))}
+        ${fila('Nivel de oportunidad', oportunidadCell(p.oportunidad))}
+        ${fila('Google Maps', p.maps ? link(p.maps, p.maps, 'Abrir en Maps') : '—')}
+        ${fila('Horarios', esc(p.horarios) || '—')}
+        ${fila('Reputación', (p.puntuacion || p.reseñas) ? `${esc(p.puntuacion || '—')} ★ · ${esc(p.reseñas || 0)} reseñas` : '—')}
         ${fila('Responsable', esc(p.responsable) || '—')}
         ${fila('Próxima acción', esc(p.proximaAccion) || '—')}
         ${fila('Fecha de seguimiento', p.fechaSeguimiento ? fmtDate(p.fechaSeguimiento) : '—')}
       </div>
+      ${p.gancho ? `<div class="field full mt-12"><label>Gancho de venta</label><div style="font-size:13px;font-weight:600;color:var(--accent)">${esc(p.gancho)}</div></div>` : ''}
       ${p.observaciones ? `<div class="field full mt-12"><label>Observaciones</label><div style="font-size:13px">${esc(p.observaciones)}</div></div>` : ''}
       <div class="divider"></div>
       <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -1827,6 +1855,27 @@
     URL.revokeObjectURL(a.href);
     toast('Backup descargado', 'ok');
   };
+  /* Carga masiva de una base de prospección. A diferencia de "Restaurar", NO pisa nada. */
+  function importarBase() {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'application/json';
+    inp.onchange = () => {
+      const file = inp.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          const arr = Array.isArray(parsed) ? parsed : parsed.prospectos;
+          const r = DB.importarProspectos(arr);
+          toast(`${r.creados} prospectos importados${r.omitidos ? ` · ${r.omitidos} ya estaban` : ''}`, 'ok');
+          renderProspectos();
+        } catch (err) { toast('Archivo inválido: ' + err.message, 'err'); }
+      };
+      reader.readAsText(file);
+    };
+    inp.click();
+  }
+
   $('#btnImport').onclick = () => $('#importFile').click();
   $('#importFile').onchange = (e) => {
     const file = e.target.files[0]; if (!file) return;
@@ -1844,6 +1893,7 @@
      ============================================================ */
   window.TNR = {
     nuevoProspecto, editarProspecto, borrarProspecto, abrirProspecto, nuevoProspectoChat, revisarParse, convertirCliente,
+    importarBase,
     clearFiltros: () => { Object.keys(pFilters).forEach(k => pFilters[k] = ''); pPage = 1; renderProspectos(); },
     buscarRun, buscarAdd, buscarAddAll,
     analizarProspecto, genMensaje, copiarMsg,

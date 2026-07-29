@@ -512,3 +512,10 @@ tbody tr:hover .row-actions { opacity: 1; }
 .bn-item.active { color: var(--accent); }
 .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
 .sidebar-backdrop.show { display: block; }
+
+/* ===== Canal y nivel de oportunidad (prospección de campo) ===== */
+.opor-badge {
+  display: inline-block; min-width: 34px; text-align: center;
+  padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700;
+  border: 1px solid transparent;
+}
