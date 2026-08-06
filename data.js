@@ -13,19 +13,30 @@
   /* ---------- Catálogos ---------- */
   const METODOS_CONTACTO = ['Cold Call', 'WhatsApp', 'Instagram', 'LinkedIn', 'Referido', 'Boca en Boca', 'Networking', 'Email'];
 
+  // Los estados "Contactado por ..." dicen por QUÉ CANAL ya se tocó al prospecto.
+  // Se setean solos al abrir WhatsApp/Email/Instagram desde "Generar mensaje" (ver marcarContacto en app.js)
+  // y se combinan: si ya estaba contactado por Mail y se abre WhatsApp, pasa a "Contactado por Mail + WhatsApp".
   const ESTADOS_LEAD = [
     { id: 'Prospecto',        color: '#8b94a8' },
     { id: 'Contactado',       color: '#1C9FE2' },
+    { id: 'Contactado por Mail',     color: '#1C9FE2' },
+    { id: 'Contactado por WhatsApp', color: '#25D366' },
+    { id: 'Contactado por Instagram', color: '#c13584' },
+    { id: 'Contactado por Mail + WhatsApp', color: '#0e7fb8' },
     { id: 'Respondió',        color: '#3fb5ee' },
     { id: 'Interesado',       color: '#1466bd' },
     { id: 'Reunión Agendada', color: '#7c5cff' },
     { id: 'Demo Enviada',     color: '#f59e42' },
     { id: 'Propuesta Enviada',color: '#f5c451' },
+    { id: 'En Negociación',   color: '#f472b6' },
     { id: 'Seguimiento',      color: '#3fb5ee' },
     { id: 'Ganado',           color: '#3ecf8e' },
     { id: 'Perdido',          color: '#ff5d6c' },
     { id: 'Recontactar',      color: '#f59e42' },
   ];
+
+  // Canales por los que ya se contactó a un prospecto (se guardan en p.canalesContacto).
+  const CANALES_CONTACTO = ['Mail', 'WhatsApp', 'Instagram', 'Llamada'];
 
   const ESTADOS_CONTENIDO = ['Pendiente', 'En Diseño', 'En Revisión', 'Esperando Cliente', 'Aprobado', 'Programado', 'Publicado'];
   const ESTADOS_TAREA = ['Pendiente', 'En Curso', 'Finalizada'];
@@ -310,6 +321,7 @@
       // Prospección de campo: cómo lo atacamos, cuánto vale y con qué frase entramos.
       canal: '', oportunidad: '', gancho: '',
       maps: '', horarios: '', puntuacion: '', reseñas: '',
+      canalesContacto: [],
       proximaAccion: '', fechaSeguimiento: '', responsable: '', historial: [],
     }, d);
     if (!p.historial.length) p.historial.push({ tipo: 'Nota', texto: 'Prospecto creado', fecha: nowISO() });
@@ -325,6 +337,34 @@
     save(); Cloud.push('prospectos', p);
     return p;
   }
+  // Deja registrado que ya se contactó al prospecto por ese canal y ajusta el estado
+  // para que se vea de un vistazo por dónde se lo tocó. No pisa estados más avanzados.
+  const ESTADO_POR_CANALES = {
+    'Mail': 'Contactado por Mail',
+    'WhatsApp': 'Contactado por WhatsApp',
+    'Instagram': 'Contactado por Instagram',
+    'Mail+WhatsApp': 'Contactado por Mail + WhatsApp',
+  };
+  const ESTADOS_PREVIOS = ['Prospecto', 'Contactado', 'Contactado por Mail', 'Contactado por WhatsApp',
+    'Contactado por Instagram', 'Contactado por Mail + WhatsApp', 'Recontactar'];
+
+  function registrarContacto(id, canal) {
+    const p = getProspecto(id);
+    if (!p) return null;
+    const canales = Array.isArray(p.canalesContacto) ? p.canalesContacto.slice() : [];
+    if (canales.indexOf(canal) < 0) canales.push(canal);
+    const cambios = { canalesContacto: canales, ultimoContacto: nowISO() };
+    // Sólo avanzamos el estado si todavía está en la etapa de contacto inicial.
+    if (ESTADOS_PREVIOS.indexOf(p.estado) >= 0) {
+      const tieneMail = canales.indexOf('Mail') >= 0;
+      const tieneWA = canales.indexOf('WhatsApp') >= 0;
+      const key = (tieneMail && tieneWA) ? 'Mail+WhatsApp' : (tieneMail ? 'Mail' : (tieneWA ? 'WhatsApp' : canal));
+      cambios.estado = ESTADO_POR_CANALES[key] || 'Contactado';
+    }
+    p.historial.unshift({ tipo: 'Contacto', texto: `Contactado por ${canal}`, fecha: nowISO() });
+    return actualizarProspecto(id, cambios);
+  }
+
   function agregarHistorial(id, tipo, texto) {
     const p = getProspecto(id);
     if (!p) return;
@@ -660,7 +700,7 @@
 
   /* ---------- API pública ---------- */
   window.DB = {
-    METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF,
+    METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF, CANALES_CONTACTO,
     CANALES, canalColor: (id) => (CANALES.find(c => c.id === id) || {}).color || '#8b94a8',
     clasificarServicios, prioridadDe, migrarServicios,
     CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
@@ -669,7 +709,7 @@
     getMeta, guardarMeta,
     getTiempos, registrarTiempo, eliminarTiempo, guardarPushSub,
     estadoColor: (id) => (ESTADOS_LEAD.find(e => e.id === id) || {}).color || '#8b94a8',
-    getProspectos, getProspecto, crearProspecto, actualizarProspecto, eliminarProspecto, agregarHistorial, convertirEnCliente,
+    getProspectos, getProspecto, crearProspecto, actualizarProspecto, eliminarProspecto, agregarHistorial, registrarContacto, convertirEnCliente,
     getClientes, getCliente, crearCliente, actualizarCliente, eliminarCliente,
     agregarServicioCliente, agregarServicioPersonalizado, quitarServicioCliente, actualizarContenido, agregarContenido,
     agregarFactura, actualizarFactura, eliminarFactura, duplicarFactura,

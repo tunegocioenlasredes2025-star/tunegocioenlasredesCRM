@@ -229,6 +229,7 @@ input, select, textarea { font-family: inherit; }
 .msg-text { width: 100%; min-height: 130px; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: var(--r-sm); padding: 11px 13px; font-family: inherit; font-size: 13px; line-height: 1.5; resize: vertical; }
 .msg-text:focus { outline: none; border-color: var(--accent); }
 .msg-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.msg-ya { margin-top: 8px; font-size: 12px; color: #3ecf8e; background: rgba(62,207,142,.1); border: 1px solid rgba(62,207,142,.3); border-radius: var(--r-sm); padding: 6px 10px; }
 
 /* ===== Table ===== */
 .table-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }

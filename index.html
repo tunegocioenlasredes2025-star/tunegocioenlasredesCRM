@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TNR · Sistema Operativo</title>
+  <title>TNR Â· Sistema Operativo</title>
   <link rel="icon" href="logo.png" />
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link rel="manifest" href="manifest.json" />
@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="styles.css?v=22" />
 </head>
 <body>
   <div id="app">
@@ -39,7 +39,7 @@
         <button class="nav-item" data-view="productividad"><span class="nav-ic" data-ic="clock"></span> Productividad</button>
         <button class="nav-item" data-view="notificaciones"><span class="nav-ic" data-ic="bell"></span> Notificaciones <span class="badge-count" id="notifBadge" hidden>0</span></button>
       </nav>
-      <div class="cloud-status" id="cloudStatus"><span class="cs-dot"></span><span id="cloudStatusText">Conectando…</span></div>
+      <div class="cloud-status" id="cloudStatus"><span class="cs-dot"></span><span id="cloudStatusText">Conectandoâ€¦</span></div>
       <div class="sidebar-foot">
         <button class="btn-ghost" id="btnExport" title="Descargar copia de seguridad"><span data-ic="download"></span> Backup</button>
         <button class="btn-ghost" id="btnImport" title="Restaurar copia"><span data-ic="upload"></span> Restaurar</button>
@@ -50,10 +50,10 @@
     <!-- Main -->
     <main class="main">
       <header class="topbar">
-        <button class="hamburger" id="hamburger" aria-label="Menú" data-ic="menu"></button>
+        <button class="hamburger" id="hamburger" aria-label="MenÃº" data-ic="menu"></button>
         <div class="search-wrap">
           <span class="search-ic" data-ic="search"></span>
-          <input type="search" id="globalSearch" placeholder="Buscar: inmobiliarias, Morón, ganados, web…" autocomplete="off" />
+          <input type="search" id="globalSearch" placeholder="Buscar: inmobiliarias, MorÃ³n, ganados, webâ€¦" autocomplete="off" />
         </div>
         <div class="topbar-actions">
           <button class="btn-primary" id="btnQuickAdd"><span data-ic="plus"></span><span class="btn-label">Nuevo prospecto</span></button>
@@ -67,7 +67,7 @@
   <div class="modal-overlay" id="modalOverlay" hidden>
     <div class="modal" id="modal" role="dialog" aria-modal="true">
       <div class="modal-head">
-        <h2 id="modalTitle">Título</h2>
+        <h2 id="modalTitle">TÃ­tulo</h2>
         <button class="modal-close" id="modalClose" aria-label="Cerrar" data-ic="x"></button>
       </div>
       <div class="modal-body" id="modalBody"></div>
@@ -78,10 +78,10 @@
   <div class="toast" id="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="icons.js?v=21"></script>
-  <script src="config.js?v=21"></script>
-  <script src="data.js?v=21"></script>
-  <script src="parser.js?v=21"></script>
-  <script src="app.js?v=21"></script>
+  <script src="icons.js?v=22"></script>
+  <script src="config.js?v=22"></script>
+  <script src="data.js?v=22"></script>
+  <script src="parser.js?v=22"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

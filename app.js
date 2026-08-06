@@ -444,8 +444,12 @@
         ${f('ciudad', 'Ciudad')}
         ${f('telefono', 'Teléfono', 'tel')}
         ${f('whatsapp', 'WhatsApp', 'tel')}
+        ${f('email', 'Email', 'email')}
         ${f('instagram', 'Instagram')}
+        ${f('facebook', 'Facebook')}
+        ${f('linkedin', 'LinkedIn')}
         ${f('sitioWeb', 'Sitio Web')}
+        ${f('horarios', 'Horarios')}
         ${f('responsable', 'Responsable')}
         ${sel('metodoContacto', 'Método de contacto', ['', ...DB.METODOS_CONTACTO])}
         ${sel('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id))}
@@ -871,6 +875,8 @@
         ${fila('WhatsApp', esc(p.whatsapp) || '—')}
         ${fila('Email', p.email ? link(p.email, 'mailto:' + p.email) : '—')}
         ${fila('Instagram', p.instagram ? link(p.instagram, 'https://instagram.com/' + p.instagram.replace('@', '')) : '—')}
+        ${fila('Facebook', p.facebook ? link(p.facebook, (p.facebook.startsWith('http') ? '' : 'https://') + p.facebook) : '—')}
+        ${fila('LinkedIn', p.linkedin ? link(p.linkedin, (p.linkedin.startsWith('http') ? '' : 'https://') + p.linkedin) : '—')}
         ${fila('Sitio web', p.sitioWeb ? link(p.sitioWeb, (p.sitioWeb.startsWith('http') ? '' : 'https://') + p.sitioWeb) : '<strong style="color:#3ecf8e">Sin web — oportunidad</strong>')}
         ${fila('Canal', canalChip(p.canal))}
         ${fila('Nivel de oportunidad', oportunidadCell(p.oportunidad))}
@@ -878,6 +884,7 @@
         ${fila('Horarios', esc(p.horarios) || '—')}
         ${fila('Reputación', (p.puntuacion || p.reseñas) ? `${esc(p.puntuacion || '—')} ★ · ${esc(p.reseñas || 0)} reseñas` : '—')}
         ${fila('Responsable', esc(p.responsable) || '—')}
+        ${fila('Contactado por', (p.canalesContacto || []).length ? esc((p.canalesContacto || []).join(' · ')) : '—')}
         ${fila('Próxima acción', esc(p.proximaAccion) || '—')}
         ${fila('Fecha de seguimiento', p.fechaSeguimiento ? fmtDate(p.fechaSeguimiento) : '—')}
       </div>
@@ -1079,16 +1086,29 @@
 
   function renderMsgBox(p, canal, txt) {
     const wa = waNum(p.whatsapp || p.telefono);
+    // Al abrir el canal queda registrado en el prospecto (estado "Contactado por ...") sin tener que tocarlo a mano.
+    const marcar = (cn) => `onclick="TNR.marcarContacto('${p.id}','${cn}')"`;
     let abrir = '';
-    if (canal === 'WhatsApp' && wa) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="${waHref(p.whatsapp || p.telefono, txt)}">${icon('whatsapp')} Abrir WhatsApp</a>`;
-    else if (canal === 'Email' && p.email) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="mailto:${esc(p.email)}?subject=${encodeURIComponent(asuntoMail(p))}&body=${encodeURIComponent(txt.replace(/^Asunto:.*\n+/, ''))}">${icon('mail')} Abrir Email</a>`;
-    else if (canal === 'Instagram' && p.instagram) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" href="https://instagram.com/${esc(String(p.instagram).replace('@', ''))}">${icon('instagram')} Abrir Instagram</a>`;
+    if (canal === 'WhatsApp' && wa) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" ${marcar('WhatsApp')} href="${waHref(p.whatsapp || p.telefono, txt)}">${icon('whatsapp')} Abrir WhatsApp</a>`;
+    else if (canal === 'Email' && p.email) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" ${marcar('Mail')} href="mailto:${esc(p.email)}?subject=${encodeURIComponent(asuntoMail(p))}&body=${encodeURIComponent(txt.replace(/^Asunto:.*\n+/, ''))}">${icon('mail')} Abrir Email</a>`;
+    else if (canal === 'Instagram' && p.instagram) abrir = `<a class="btn-primary" style="padding:7px 12px" target="_blank" ${marcar('Instagram')} href="https://instagram.com/${esc(String(p.instagram).replace('@', ''))}">${icon('instagram')} Abrir Instagram</a>`;
+    const ya = (p.canalesContacto || []).length
+      ? `<div class="msg-ya">Ya contactado por: ${(p.canalesContacto || []).map(esc).join(' · ')}</div>` : '';
     return `<div class="msg-canal-tag">${esc(canal)}</div>
       <textarea id="msgText" class="msg-text">${esc(txt)}</textarea>
+      ${ya}
       <div class="msg-actions">
         <button class="btn-secondary" style="padding:7px 12px" onclick="TNR.copiarMsg()">${icon('copy')} Copiar</button>
         ${abrir}
+        <button class="btn-ghost" style="padding:7px 12px;flex:none" onclick="TNR.marcarContacto('${p.id}','${canal === 'Email' ? 'Mail' : canal}',1)">Marcar contactado</button>
       </div>`;
+  }
+
+  // Registra el canal por el que se contactó y refresca la ficha para que se vea el estado nuevo.
+  function marcarContacto(id, canal, avisar) {
+    DB.registrarContacto(id, canal);
+    if (avisar) toast('Marcado como contactado por ' + canal, 'ok');
+    setTimeout(() => { const p = DB.getProspecto(id); if (p && $('#modalBody')) abrirProspecto(id); if (current === 'prospectos' || current === 'dashboard') render(); }, 350);
   }
 
   function analizarProspecto(id) {
@@ -1896,7 +1916,7 @@
     importarBase,
     clearFiltros: () => { Object.keys(pFilters).forEach(k => pFilters[k] = ''); pPage = 1; renderProspectos(); },
     buscarRun, buscarAdd, buscarAddAll,
-    analizarProspecto, genMensaje, copiarMsg,
+    analizarProspecto, genMensaje, copiarMsg, marcarContacto,
     nuevoCliente, editarCliente, borrarCliente, abrirCliente,
     quitarSrv: (cid, sid) => { DB.quitarServicioCliente(cid, sid); abrirCliente(cid, 'servicios'); },
     setContEstado: (cid, ctid, v) => { DB.actualizarContenido(cid, ctid, { estado: v }); },
