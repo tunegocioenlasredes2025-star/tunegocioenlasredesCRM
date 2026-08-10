@@ -177,7 +177,14 @@
     const topBy = (key) => { const m = {}; ps.forEach(p => { const k = p[key]; if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6); };
     const rubroRows = topBy('rubro').map(([l, v]) => [l, v, '#7c5cff']);
     const ciudadRows = topBy('ciudad').map(([l, v]) => [l, v, '#3fb5ee']);
-    const conv = contactados ? Math.round(ganados / contactados * 100) : 0;
+    // Conversión: con una base grande de prospectos el porcentaje es chico (ej: 2 de 800
+    // contactados = 0,25%). Si lo redondeamos a entero se ve "0%" y parece que los ganados
+    // no cuentan, así que mostramos decimales cuando el número es bajo.
+    const convNum = contactados ? ganados / contactados * 100 : 0;
+    const conv = convNum === 0 ? '0'
+      : convNum >= 10 ? String(Math.round(convNum))
+        : convNum >= 1 ? convNum.toFixed(1).replace('.', ',')
+          : convNum.toFixed(2).replace('.', ',');
 
     view.innerHTML = `
       <div class="view-head">
@@ -189,7 +196,7 @@
         ${kpi('Interesados', interesados, '#7c5cff', 'En pipeline activo')}
         ${kpi('Reuniones', reuniones, '#f472b6', 'Agendadas')}
         ${kpi('Ventas cerradas', ganados, '#3ecf8e', 'Prospectos ganados')}
-        ${kpi('Conversión', conv + '%', conv >= 20 ? '#3ecf8e' : '#f5c451', 'Ganados / contactados')}
+        ${kpi('Conversión', conv + '%', convNum >= 20 ? '#3ecf8e' : '#f5c451', `${ganados} ganados de ${contactados} contactados`)}
       </div>
 
       <div class="grid-2" style="margin-bottom:16px">

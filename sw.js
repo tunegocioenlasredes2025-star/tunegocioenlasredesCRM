@@ -3,11 +3,11 @@
    - Cachea el shell para que la app abra offline.
    - Recibe notificaciones push (cuando se configure el enviador).
    ============================================================ */
-const CACHE = 'tnr-cache-v21';
+const CACHE = 'tnr-cache-v23';
 const ASSETS = [
   './', './index.html',
-  './styles.css?v=21', './icons.js?v=21', './config.js?v=21',
-  './data.js?v=21', './parser.js?v=21', './app.js?v=21',
+  './styles.css?v=23', './icons.js?v=23', './config.js?v=23',
+  './data.js?v=23', './parser.js?v=23', './app.js?v=23',
   './logo.png', './logo.svg', './manifest.json',
 ];
 
