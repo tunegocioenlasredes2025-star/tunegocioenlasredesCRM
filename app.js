@@ -323,13 +323,17 @@
     );
   }
 
-  // Orden de ruta: primero prioridad A, después B, después C, y dentro de cada una por ciudad.
+  // Orden de ruta: primero prioridad A, después B, después C, y dentro de cada una
+  // del más cercano al más lejano (km medidos contra la base de Coronel Quesada 1218).
   function ordenarRuta(list) {
     const rank = { 'A': 0, 'B': 1, 'C': 2 };
     return list.slice().sort((a, b) => {
       const ra = rank[a.prioridad] != null ? rank[a.prioridad] : 9;
       const rb = rank[b.prioridad] != null ? rank[b.prioridad] : 9;
       if (ra !== rb) return ra - rb;
+      const ka = a.km != null && a.km !== '' ? +a.km : 999;
+      const kb = b.km != null && b.km !== '' ? +b.km : 999;
+      if (ka !== kb) return ka - kb;
       return (a.ciudad || '').localeCompare(b.ciudad || '') || (a.empresa || '').localeCompare(b.empresa || '');
     });
   }
@@ -414,6 +418,7 @@
         </div>
         <div class="pc-loc">
           <strong>${esc(p.ciudad) || 'Sin ciudad'}</strong>${p.direccion ? ` · ${esc(p.direccion)}` : ''}
+          ${p.km !== undefined && p.km !== '' && p.km !== null ? `<span class="pc-km">a ${esc(p.km)} km</span>` : ''}
         </div>
         ${obs ? `<p class="pc-obs">${esc(obs.length > 200 ? obs.slice(0, 200) + '…' : obs)}</p>` : ''}
         <div class="pc-actions" onclick="event.stopPropagation()">

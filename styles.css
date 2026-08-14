@@ -247,6 +247,7 @@ input, select, textarea { font-family: inherit; }
 .tag-tipo { background: rgba(28,159,226,.16); color: var(--accent); border-color: rgba(28,159,226,.4); }
 .pc-loc { margin-top: 9px; font-size: 14px; color: var(--text-dim); line-height: 1.4; }
 .pc-loc strong { color: var(--text); }
+.pc-km { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 20px; font-size: 12px; font-weight: 700; background: rgba(28,159,226,.14); color: var(--accent); }
 .pc-obs {
   margin-top: 8px; font-size: 13px; color: var(--text-dim); line-height: 1.45;
   border-left: 2px solid var(--border-2); padding-left: 10px;
