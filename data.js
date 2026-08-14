@@ -396,25 +396,30 @@
     });
     if (!tocados.length) return 0;
     save();
-    // De a tandas y esperando cada una: 1800 push simultáneos tumban la conexión
-    // con ERR_INSUFFICIENT_RESOURCES y la migración queda sólo en local.
-    for (let i = 0; i < tocados.length; i += 20) {
-      await Promise.all(tocados.slice(i, i + 20).map(p => Cloud.push('prospectos', p)));
+    // De a tandas chicas y esperando cada una: cientos de push simultáneos tumban
+    // la conexión con ERR_INSUFFICIENT_RESOURCES y la migración queda sólo en local.
+    for (let i = 0; i < tocados.length; i += 5) {
+      await Promise.allSettled(tocados.slice(i, i + 5).map(p => Cloud.push('prospectos', p)));
+      await new Promise(r => setTimeout(r, 120));
     }
     return tocados.length;
   }
 
   // Reempuja toda la colección a la nube de a tandas. Sirve para recuperar
   // el estado local cuando una escritura masiva falló a mitad de camino.
-  async function sincronizarTodo(tabla) {
+  async function sincronizarTodo(tabla, onProgreso) {
     const t = tabla || 'prospectos';
     const filas = load()[t] || [];
-    let ok = 0;
-    for (let i = 0; i < filas.length; i += 20) {
-      await Promise.all(filas.slice(i, i + 20).map(r => Cloud.push(t, r)));
-      ok = Math.min(i + 20, filas.length);
+    let ok = 0, fallas = 0;
+    // Tandas chicas con respiro: el navegador corta las conexiones (ERR_INSUFFICIENT_RESOURCES)
+    // si se le encolan cientos de upserts seguidos.
+    for (let i = 0; i < filas.length; i += 5) {
+      const res = await Promise.allSettled(filas.slice(i, i + 5).map(r => Cloud.push(t, r)));
+      res.forEach(r => { if (r.status === 'fulfilled') ok++; else fallas++; });
+      if (onProgreso) onProgreso(ok, fallas, filas.length);
+      await new Promise(r => setTimeout(r, 120));
     }
-    return ok;
+    return { ok, fallas, total: filas.length };
   }
 
   function registrarContacto(id, canal) {
