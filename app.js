@@ -82,10 +82,11 @@
     const c = n >= 85 ? '#3ecf8e' : n >= 70 ? '#f5c451' : '#8b94a8';
     return `<span class="opor-badge" style="color:${c};border-color:${c}55;background:${c}18">${n}</span>`;
   }
+  // A/B/C es prioridad geográfica: A = pegado a la base, C = el borde de la zona que vale recorrer.
   function prioridadChip(p) {
-    const map = { 'Baja': '#8b94a8', 'Media': '#5b8cff', 'Alta': '#f59e42', 'Urgente': '#ff5d6c' };
+    const map = { 'A': '#3ecf8e', 'B': '#f5c451', 'C': '#8b94a8' };
     const c = map[p] || '#8b94a8';
-    return `<span class="chip" style="background:${c}22;color:${c}"><span class="chip-dot" style="background:${c}"></span>${esc(p)}</span>`;
+    return `<span class="chip chip-prio" style="background:${c}22;color:${c}"><span class="chip-dot" style="background:${c}"></span>${esc(p)}</span>`;
   }
   function tareaChip(e) {
     const map = { 'Pendiente': '#f59e42', 'En Curso': '#5b8cff', 'Finalizada': '#3ecf8e' };
@@ -96,7 +97,8 @@
   /* ---------- Estado de la app ---------- */
   let current = 'dashboard';
   let searchTerm = '';
-  const pFilters = { q: '', segmento: '', canal: '', rubro: '', servicio: '', ciudad: '', estado: '', metodo: '', prioridad: '', responsable: '', wa: '', ig: '', web: '' };
+  // Un filtro por decisión comercial y nada más: qué es, qué tan cerca está, dónde, cómo viene y por dónde se contacta.
+  const pFilters = { q: '', tipo: '', prioridad: '', ciudad: '', estado: '', metodo: '' };
   let pPage = 1;
   const PAGE = 50;
 
@@ -311,20 +313,25 @@
   function filtrarProspectos(all) {
     const q = pFilters.q.trim().toLowerCase();
     return all.filter(p =>
-      (!pFilters.rubro || p.rubro === pFilters.rubro) &&
-      (!pFilters.servicio || (p.servicios || []).includes(pFilters.servicio)) &&
+      // '_sin' junta todo lo que no es ferretería ni pauta MF (tandas viejas de otros rubros)
+      (!pFilters.tipo || (pFilters.tipo === '_sin' ? !p.tipo : p.tipo === pFilters.tipo)) &&
       (!pFilters.ciudad || p.ciudad === pFilters.ciudad) &&
       (!pFilters.estado || p.estado === pFilters.estado) &&
       (!pFilters.metodo || p.metodoContacto === pFilters.metodo) &&
       (!pFilters.prioridad || p.prioridad === pFilters.prioridad) &&
-      (!pFilters.responsable || p.responsable === pFilters.responsable) &&
-      (!pFilters.wa || (pFilters.wa === 'si' ? tieneWA(p) : !tieneWA(p))) &&
-      (!pFilters.ig || (pFilters.ig === 'si' ? tieneIG(p) : !tieneIG(p))) &&
-      (!pFilters.web || (pFilters.web === 'si' ? tieneWeb(p) : !tieneWeb(p))) &&
-      (!pFilters.canal || p.canal === pFilters.canal) &&
-      (!pFilters.segmento || (pFilters.segmento === '_MF' ? (p.segmento || '').startsWith(DB.SEG_MF) : p.segmento === pFilters.segmento)) &&
-      (!q || [p.empresa, p.nombre, p.rubro, p.ciudad, p.instagram, p.whatsapp, p.observaciones, p.segmento, (p.servicios || []).join(' ')].some(v => (v || '').toLowerCase().includes(q)))
+      (!q || [p.empresa, p.nombre, p.rubro, p.ciudad, p.direccion, p.instagram, p.whatsapp, p.telefono, p.email, p.observaciones].some(v => (v || '').toLowerCase().includes(q)))
     );
+  }
+
+  // Orden de ruta: primero prioridad A, después B, después C, y dentro de cada una por ciudad.
+  function ordenarRuta(list) {
+    const rank = { 'A': 0, 'B': 1, 'C': 2 };
+    return list.slice().sort((a, b) => {
+      const ra = rank[a.prioridad] != null ? rank[a.prioridad] : 9;
+      const rb = rank[b.prioridad] != null ? rank[b.prioridad] : 9;
+      if (ra !== rb) return ra - rb;
+      return (a.ciudad || '').localeCompare(b.ciudad || '') || (a.empresa || '').localeCompare(b.empresa || '');
+    });
   }
   const activos = () => Object.keys(pFilters).filter(k => pFilters[k]).length;
 
@@ -345,19 +352,12 @@
       </div>
 
       <div class="filters">
-        <div class="filter-search"><span class="search-ic" data-ic="search"></span><input type="search" id="pSearch" placeholder="Buscar en resultados…" value="${esc(pFilters.q)}" autocomplete="off" /></div>
-        ${segmentoFilter(pFilters.segmento)}
-        ${selectFilter('canal', 'Canal', DB.CANALES.map(c => c.id), pFilters.canal)}
-        ${selectFilter('servicio', 'Servicio', DB.SERVICIOS_PRINCIPAL, pFilters.servicio)}
-        ${selectFilter('rubro', 'Rubro', rubros, pFilters.rubro)}
+        <div class="filter-search"><span class="search-ic" data-ic="search"></span><input type="search" id="pSearch" placeholder="Buscar nombre, dirección, teléfono…" value="${esc(pFilters.q)}" autocomplete="off" /></div>
+        ${tipoFilter(pFilters.tipo)}
         ${selectFilter('prioridad', 'Prioridad', DB.PRIORIDADES, pFilters.prioridad)}
         ${selectFilter('ciudad', 'Ciudad', ciudades, pFilters.ciudad)}
         ${selectFilter('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id), pFilters.estado)}
         ${selectFilter('metodo', 'Método', DB.METODOS_CONTACTO, pFilters.metodo)}
-        ${responsables.length ? selectFilter('responsable', 'Responsable', responsables, pFilters.responsable) : ''}
-        ${triFilter('wa', 'WhatsApp', pFilters.wa)}
-        ${triFilter('ig', 'Instagram', pFilters.ig)}
-        ${triFilter('web', 'Web', pFilters.web)}
         ${activos() ? `<button class="filter-clear" onclick="TNR.clearFiltros()">${icon('x')} Limpiar (${activos()})</button>` : ''}
       </div>
       <div id="pList"></div>
@@ -371,7 +371,7 @@
 
   function renderProspectosList() {
     const box = $('#pList'); if (!box) return;
-    const filtered = filtrarProspectos(DB.getProspectos());
+    const filtered = ordenarRuta(filtrarProspectos(DB.getProspectos()));
     const shown = filtered.slice(0, pPage * PAGE);
     const restantes = filtered.length - shown.length;
     box.innerHTML = `
@@ -386,41 +386,45 @@
   function selectFilter(key, label, opts, val) {
     return `<select data-f="${key}" class="${val ? 'on' : ''}"><option value="">${label}: todos</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   }
-  function triFilter(key, label, val) {
-    return `<select data-f="${key}" class="${val ? 'on' : ''}"><option value="">${label}: todos</option><option value="si" ${val === 'si' ? 'selected' : ''}>Con ${label}</option><option value="no" ${val === 'no' ? 'selected' : ''}>Sin ${label}</option></select>`;
-  }
-  // Filtro de segmento/campaña: permite ver TODO Mundo Ferretero o una de sus dos sublistas.
-  function segmentoFilter(val) {
-    const opts = [['', 'Segmento: todos'], ['_MF', `★ ${DB.SEG_MF} · todo`]]
-      .concat(DB.SEGMENTOS.map(s => [s, '   ' + s.replace(`${DB.SEG_MF} · `, '')]));
-    return `<select data-f="segmento" class="${val ? 'on' : ''}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${v === val ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  // Tipo de prospecto: las dos líneas que trabajamos + el resto de la base sin clasificar.
+  function tipoFilter(val) {
+    const opts = [['', 'Tipo: todos']].concat(DB.TIPOS_PROSPECTO.map(t => [t, t]));
+    opts.push(['_sin', 'Sin tipo (otros rubros)']);
+    return `<select data-f="tipo" class="${val ? 'on' : ''}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${v === val ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   }
 
+  // Tarjetas en vez de tabla: el CRM se usa mucho desde el celular durante las visitas.
+  // Orden de lectura: nombre → tipo → prioridad → ciudad → dirección → contactos → estado → observaciones.
   function tablaProspectos(list) {
-    return `<div class="table-wrap"><table>
-      <thead><tr><th>Empresa / Contacto</th><th>Canal</th><th>Oport.</th><th>Rubro</th><th>Servicio</th><th>Ciudad</th><th>Estado</th><th>Prioridad</th><th>Seguimiento</th><th></th></tr></thead>
-      <tbody>${list.map(p => {
-        const d = daysUntil(p.fechaSeguimiento);
-        const segTag = p.fechaSeguimiento ? (d < 0 ? `<span class="tag" style="color:#ff5d6c">${fmtDate(p.fechaSeguimiento)}</span>` : d === 0 ? `<span class="tag" style="color:#f5c451">hoy</span>` : fmtDate(p.fechaSeguimiento)) : '<span class="cell-dim">—</span>';
-        const svc = (p.servicios || []).length ? (p.servicios || []).map(s => `<span class="tag tag-svc">${esc(s)}</span>`).join('') : '<span class="cell-dim">—</span>';
-        return `<tr onclick="TNR.abrirProspecto('${p.id}')">
-          <td data-label="Empresa"><div class="cell-strong">${esc(p.empresa || p.nombre || 'Sin nombre')}</div>${p.empresa && p.nombre ? `<div class="cell-dim">${esc(p.nombre)}</div>` : ''}${p.segmento ? `<span class="tag tag-seg">${esc(p.segmento.replace(`${DB.SEG_MF} · `, 'MF · '))}</span>` : ''}</td>
-          <td data-label="Canal">${canalChip(p.canal)}</td>
-          <td data-label="Oportunidad">${oportunidadCell(p.oportunidad)}</td>
-          <td data-label="Rubro">${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : '<span class="cell-dim">—</span>'}</td>
-          <td data-label="Servicio"><div class="svc-tags">${svc}</div></td>
-          <td data-label="Ciudad" class="cell-dim">${esc(p.ciudad) || '—'}</td>
-          <td data-label="Estado">${estadoChip(p.estado)}</td>
-          <td data-label="Prioridad">${p.prioridad ? prioridadChip(p.prioridad) : '<span class="cell-dim">—</span>'}</td>
-          <td data-label="Seguimiento">${segTag}</td>
-          <td data-label=""><div class="row-actions" onclick="event.stopPropagation()">
-            ${tieneWA(p) ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="${waHref(p.whatsapp)}">${icon('whatsapp')}</a>` : ''}
-            <button class="icon-btn" title="Editar" onclick="TNR.editarProspecto('${p.id}')">${icon('edit')}</button>
-            <button class="icon-btn danger" title="Eliminar" onclick="TNR.borrarProspecto('${p.id}')">${icon('trash')}</button>
-          </div></td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>`;
+    return `<div class="p-cards">${list.map(p => {
+      const wa = tieneWA(p) ? waHref(p.whatsapp || p.telefono) : '';
+      const ig = tieneIG(p) ? 'https://instagram.com/' + String(p.instagram).replace('@', '') : '';
+      const web = tieneWeb(p) ? (String(p.sitioWeb).startsWith('http') ? p.sitioWeb : 'https://' + p.sitioWeb) : '';
+      const maps = p.maps || (p.direccion ? 'https://www.google.com/maps/search/' + encodeURIComponent(p.direccion + ' ' + (p.ciudad || '')) : '');
+      const obs = String(p.observaciones || '').replace(/\s+/g, ' ').trim();
+      return `<article class="p-card" onclick="TNR.abrirProspecto('${p.id}')">
+        <header class="pc-head">
+          <h3 class="pc-name">${esc(p.empresa || p.nombre || 'Sin nombre')}</h3>
+          ${p.prioridad ? prioridadChip(p.prioridad) : ''}
+        </header>
+        <div class="pc-tags">
+          ${p.tipo ? `<span class="tag tag-tipo">${esc(p.tipo)}</span>` : ''}
+          ${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : ''}
+          ${estadoChip(p.estado)}
+        </div>
+        <div class="pc-loc">
+          <strong>${esc(p.ciudad) || 'Sin ciudad'}</strong>${p.direccion ? ` · ${esc(p.direccion)}` : ''}
+        </div>
+        ${obs ? `<p class="pc-obs">${esc(obs.length > 200 ? obs.slice(0, 200) + '…' : obs)}</p>` : ''}
+        <div class="pc-actions" onclick="event.stopPropagation()">
+          ${wa ? `<a class="pc-btn wa" target="_blank" href="${wa}" onclick="TNR.marcarContacto('${p.id}','WhatsApp')">${icon('whatsapp')} WhatsApp</a>` : ''}
+          ${ig ? `<a class="pc-btn ig" target="_blank" href="${ig}" onclick="TNR.marcarContacto('${p.id}','Instagram')">${icon('instagram')} Instagram</a>` : ''}
+          ${p.email ? `<a class="pc-btn mail" href="mailto:${esc(p.email)}" onclick="TNR.marcarContacto('${p.id}','Mail')">${icon('mail')} Mail</a>` : ''}
+          ${maps ? `<a class="pc-btn maps" target="_blank" href="${esc(maps)}">${icon('map-pin')} Cómo llegar</a>` : ''}
+          ${web ? `<a class="pc-btn" target="_blank" href="${esc(web)}">${icon('globe')} Web</a>` : ''}
+        </div>
+      </article>`;
+    }).join('')}</div>`;
   }
   function waNum(s) { return String(s).replace(/\D/g, '').replace(/^0/, '').replace(/^15/, '11'); }
   // El WhatsApp puede venir como número o como link (wa.me, wa.link, linktr.ee…): devolvemos el href correcto.
@@ -457,21 +461,14 @@
         ${f('linkedin', 'LinkedIn')}
         ${f('sitioWeb', 'Sitio Web')}
         ${f('horarios', 'Horarios')}
+        ${f('maps', 'Google Maps')}
         ${f('responsable', 'Responsable')}
+        ${sel('tipo', 'Tipo de prospecto', ['', ...DB.TIPOS_PROSPECTO])}
         ${sel('metodoContacto', 'Método de contacto', ['', ...DB.METODOS_CONTACTO])}
         ${sel('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id))}
-        ${sel('prioridad', 'Prioridad', ['', ...DB.PRIORIDADES])}
-        ${sel('segmento', 'Segmento / campaña', ['', ...DB.SEGMENTOS], true)}
-        ${sel('canal', 'Canal', ['', ...DB.CANALES.map(c => c.id)])}
-        <div class="field"><label>Nivel de oportunidad <span class="lbl-hint">(0-100)</span></label>
-        <input type="number" name="oportunidad" min="0" max="100" value="${esc(p.oportunidad || '')}" /></div>
-        ${f('maps', 'Google Maps')}
-        ${f('horarios', 'Horarios')}
+        ${sel('prioridad', 'Prioridad (A = más cerca de la base)', ['', ...DB.PRIORIDADES])}
         ${f('gancho', 'Gancho de venta', 'text', true)}
         <div class="field"><label>Fecha de seguimiento</label><input type="date" name="fechaSeguimiento" value="${esc(p.fechaSeguimiento || '')}" /></div>
-        <div class="field full"><label>Servicio principal <span class="lbl-hint">(uno o varios)</span></label>
-          <div class="chips-check">${DB.SERVICIOS_PRINCIPAL.map(s => `<label class="chip-check"><input type="checkbox" name="servicios" value="${esc(s)}" ${(p.servicios || []).includes(s) ? 'checked' : ''} /><span>${esc(s)}</span></label>`).join('')}</div>
-        </div>
         ${f('proximaAccion', 'Próxima acción', 'text', true)}
         <div class="field full"><label>Mensaje personalizado <span class="lbl-hint">(si lo cargás, es el que sale en "Generar mensaje")</span></label><textarea name="mensaje">${esc(p.mensaje || '')}</textarea></div>
         <div class="field full"><label>Observaciones</label><textarea name="observaciones">${esc(p.observaciones || '')}</textarea></div>

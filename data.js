@@ -11,36 +11,57 @@
   const TABLES = ['prospectos', 'clientes', 'tareas', 'eventos', 'metas']; // colecciones en la nube
 
   /* ---------- Catálogos ---------- */
-  const METODOS_CONTACTO = ['Cold Call', 'WhatsApp', 'Instagram', 'LinkedIn', 'Referido', 'Boca en Boca', 'Networking', 'Email'];
+  // Sólo los canales que se trabajan desde ESTE CRM. Las llamadas en frío van al CRM de vendedores.
+  const METODOS_CONTACTO = ['Mail', 'Wsp', 'IG'];
+
+  // Las dos líneas de prospección que trabajamos hoy. El resto de la base queda sin tipo.
+  const TIPO_FERRETERIA = 'Ferreterías';
+  const TIPO_PAUTA = 'Empresas para pauta MF';
+  const TIPOS_PROSPECTO = [TIPO_FERRETERIA, TIPO_PAUTA];
 
   // Los estados "Contactado por ..." dicen por QUÉ CANAL ya se tocó al prospecto.
   // Se setean solos al abrir WhatsApp/Email/Instagram desde "Generar mensaje" (ver marcarContacto en app.js)
   // y se combinan: si ya estaba contactado por Mail y se abre WhatsApp, pasa a "Contactado por Mail + WhatsApp".
   const ESTADOS_LEAD = [
-    { id: 'Prospecto',        color: '#8b94a8' },
-    { id: 'Contactado',       color: '#1C9FE2' },
-    { id: 'Contactado por Mail',     color: '#1C9FE2' },
-    { id: 'Contactado por WhatsApp', color: '#25D366' },
-    { id: 'Contactado por Instagram', color: '#c13584' },
-    { id: 'Contactado por Mail + WhatsApp', color: '#0e7fb8' },
-    { id: 'Respondió',        color: '#3fb5ee' },
-    { id: 'Interesado',       color: '#1466bd' },
-    { id: 'Reunión Agendada', color: '#7c5cff' },
-    { id: 'Demo Enviada',     color: '#f59e42' },
-    { id: 'Propuesta Enviada',color: '#f5c451' },
-    { id: 'En Negociación',   color: '#f472b6' },
-    { id: 'Seguimiento',      color: '#3fb5ee' },
-    { id: 'Ganado',           color: '#3ecf8e' },
-    { id: 'Perdido',          color: '#ff5d6c' },
-    { id: 'Recontactar',      color: '#f59e42' },
+    { id: 'Prospecto',                color: '#8b94a8' },
+    { id: 'Contactado por mail',      color: '#1C9FE2' },
+    { id: 'Contactado por wsp',       color: '#25D366' },
+    { id: 'Contactado por ig',        color: '#c13584' },
+    { id: 'Contactado por mail+wsp',  color: '#0e7fb8' },
+    { id: 'Demo agendada',            color: '#7c5cff' },
+    { id: 'Demo enviada',             color: '#f59e42' },
+    { id: 'Seguimiento',              color: '#3fb5ee' },
+    { id: 'No funcionó',              color: '#ff5d6c' },
   ];
 
+  // Estados de tandas viejas -> estado equivalente del catálogo nuevo.
+  // "No funcionó" es sólo para problemas reales de contacto, no para "todavía no respondió".
+  const ESTADOS_LEGACY = {
+    'Contactado': 'Contactado por mail',
+    'Contactado por Mail': 'Contactado por mail',
+    'Contactado por WhatsApp': 'Contactado por wsp',
+    'Contactado por Instagram': 'Contactado por ig',
+    'Contactado por Mail + WhatsApp': 'Contactado por mail+wsp',
+    'Respondió': 'Seguimiento',
+    'Interesado': 'Seguimiento',
+    'En Negociación': 'Seguimiento',
+    'Recontactar': 'Seguimiento',
+    'Ganado': 'Seguimiento',
+    'Reunión Agendada': 'Demo agendada',
+    'Propuesta Enviada': 'Demo enviada',
+    'Demo Enviada': 'Demo enviada',
+    'Perdido': 'No funcionó',
+  };
+
   // Canales por los que ya se contactó a un prospecto (se guardan en p.canalesContacto).
-  const CANALES_CONTACTO = ['Mail', 'WhatsApp', 'Instagram', 'Llamada'];
+  const CANALES_CONTACTO = ['Mail', 'WhatsApp', 'Instagram'];
 
   const ESTADOS_CONTENIDO = ['Pendiente', 'En Diseño', 'En Revisión', 'Esperando Cliente', 'Aprobado', 'Programado', 'Publicado'];
   const ESTADOS_TAREA = ['Pendiente', 'En Curso', 'Finalizada'];
-  const PRIORIDADES = ['Baja', 'Media', 'Alta', 'Urgente'];
+  // Prioridad geográfica: A = pegado a la base (Coronel Quesada 1218, Ituzaingó),
+  // B = distancia razonable para visitar, C = más lejos pero todavía tiene sentido recorrer.
+  const PRIORIDADES = ['A', 'B', 'C'];
+  const PRIORIDADES_LEGACY = { 'Urgente': 'A', 'Alta': 'A', 'Media': 'B', 'Baja': 'C' };
 
   // Segmentos / campañas especiales. Permiten agrupar prospectos de un proyecto puntual.
   const SEG_MF = 'Mundo Ferretero';
@@ -164,9 +185,10 @@
         } catch (e) { console.warn('Tabla no disponible aún: ' + t + ' (¿falta correr el SQL?)', e && e.message); }
       }
     },
+    // Devuelve la promesa para que quien haga escrituras masivas pueda esperarlas de a tandas.
     push(table, obj) {
-      if (!this.enabled) return;
-      this.client.from(table)
+      if (!this.enabled) return Promise.resolve();
+      return this.client.from(table)
         .upsert({ id: obj.id, data: obj, updated_at: nowISO() })
         .then(({ error }) => { if (error) console.error('push ' + table, error); });
     },
@@ -317,7 +339,7 @@
       nombre: '', empresa: '', rubro: '', direccion: '', ciudad: '', provincia: '', pais: 'Argentina',
       telefono: '', whatsapp: '', email: '', instagram: '', facebook: '', linkedin: '', sitioWeb: '',
       metodoContacto: '', estado: 'Prospecto', observaciones: '',
-      servicios: [], prioridad: '', segmento: '', mensaje: '',
+      tipo: '', servicios: [], prioridad: '', segmento: '', mensaje: '',
       // Prospección de campo: cómo lo atacamos, cuánto vale y con qué frase entramos.
       canal: '', oportunidad: '', gancho: '',
       maps: '', horarios: '', puntuacion: '', reseñas: '',
@@ -347,6 +369,53 @@
   };
   const ESTADOS_PREVIOS = ['Prospecto', 'Contactado', 'Contactado por Mail', 'Contactado por WhatsApp',
     'Contactado por Instagram', 'Contactado por Mail + WhatsApp', 'Recontactar'];
+
+  // Pasa la base al catálogo nuevo: tipo de prospecto, estados y prioridad A/B/C.
+  // Corre una sola vez sobre cada prospecto y sólo toca lo que hace falta.
+  async function migrarProspectos() {
+    const d = load();
+    const tocados = [];
+    d.prospectos.forEach(p => {
+      const cambios = {};
+      if (!p.tipo) {
+        const seg = String(p.segmento || '');
+        if (seg.indexOf('pauta') >= 0 || p.canal === 'PAUTA') cambios.tipo = TIPO_PAUTA;
+        else if (seg.indexOf('Ferreterías') >= 0) cambios.tipo = TIPO_FERRETERIA;
+        else if (/ferreter|buloner|corral[oó]n/i.test(String(p.rubro || ''))) cambios.tipo = TIPO_FERRETERIA;
+      }
+      if (p.estado && ESTADOS_LEGACY[p.estado]) cambios.estado = ESTADOS_LEGACY[p.estado];
+      if (p.prioridad && PRIORIDADES_LEGACY[p.prioridad]) cambios.prioridad = PRIORIDADES_LEGACY[p.prioridad];
+      const met = String(p.metodoContacto || '');
+      if (met && METODOS_CONTACTO.indexOf(met) < 0) {
+        if (/mail|email/i.test(met)) cambios.metodoContacto = 'Mail';
+        else if (/whatsapp|wsp/i.test(met)) cambios.metodoContacto = 'Wsp';
+        else if (/instagram|ig/i.test(met)) cambios.metodoContacto = 'IG';
+        else cambios.metodoContacto = ''; // Cold Call y demás ya no se usan acá
+      }
+      if (Object.keys(cambios).length) { Object.assign(p, cambios); tocados.push(p); }
+    });
+    if (!tocados.length) return 0;
+    save();
+    // De a tandas y esperando cada una: 1800 push simultáneos tumban la conexión
+    // con ERR_INSUFFICIENT_RESOURCES y la migración queda sólo en local.
+    for (let i = 0; i < tocados.length; i += 20) {
+      await Promise.all(tocados.slice(i, i + 20).map(p => Cloud.push('prospectos', p)));
+    }
+    return tocados.length;
+  }
+
+  // Reempuja toda la colección a la nube de a tandas. Sirve para recuperar
+  // el estado local cuando una escritura masiva falló a mitad de camino.
+  async function sincronizarTodo(tabla) {
+    const t = tabla || 'prospectos';
+    const filas = load()[t] || [];
+    let ok = 0;
+    for (let i = 0; i < filas.length; i += 20) {
+      await Promise.all(filas.slice(i, i + 20).map(r => Cloud.push(t, r)));
+      ok = Math.min(i + 20, filas.length);
+    }
+    return ok;
+  }
 
   function registrarContacto(id, canal) {
     const p = getProspecto(id);
@@ -701,6 +770,7 @@
   /* ---------- API pública ---------- */
   window.DB = {
     METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF, CANALES_CONTACTO,
+    TIPOS_PROSPECTO, TIPO_FERRETERIA, TIPO_PAUTA, migrarProspectos, sincronizarTodo,
     CANALES, canalColor: (id) => (CANALES.find(c => c.id === id) || {}).color || '#8b94a8',
     clasificarServicios, prioridadDe, migrarServicios,
     CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
