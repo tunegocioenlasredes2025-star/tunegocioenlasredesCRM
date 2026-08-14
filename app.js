@@ -98,7 +98,7 @@
   let current = 'dashboard';
   let searchTerm = '';
   // Un filtro por decisión comercial y nada más: qué es, qué tan cerca está, dónde, cómo viene y por dónde se contacta.
-  const pFilters = { q: '', tipo: '', prioridad: '', ciudad: '', estado: '', metodo: '' };
+  const pFilters = { q: '', tipo: '', subtipo: '', prioridad: '', ciudad: '', estado: '', metodo: '' };
   let pPage = 1;
   const PAGE = 50;
 
@@ -315,6 +315,7 @@
     return all.filter(p =>
       // '_sin' junta todo lo que no es ferretería ni pauta MF (tandas viejas de otros rubros)
       (!pFilters.tipo || (pFilters.tipo === '_sin' ? !p.tipo : p.tipo === pFilters.tipo)) &&
+      (!pFilters.subtipo || p.subtipo === pFilters.subtipo) &&
       (!pFilters.ciudad || p.ciudad === pFilters.ciudad) &&
       (!pFilters.estado || p.estado === pFilters.estado) &&
       (!pFilters.metodo || p.metodoContacto === pFilters.metodo) &&
@@ -358,6 +359,7 @@
       <div class="filters">
         <div class="filter-search"><span class="search-ic" data-ic="search"></span><input type="search" id="pSearch" placeholder="Buscar nombre, dirección, teléfono…" value="${esc(pFilters.q)}" autocomplete="off" /></div>
         ${tipoFilter(pFilters.tipo)}
+        ${selectFilter('subtipo', 'Rubro', DB.SUBTIPOS, pFilters.subtipo)}
         ${selectFilter('prioridad', 'Prioridad', DB.PRIORIDADES, pFilters.prioridad)}
         ${selectFilter('ciudad', 'Ciudad', ciudades, pFilters.ciudad)}
         ${selectFilter('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id), pFilters.estado)}
@@ -413,7 +415,7 @@
         </header>
         <div class="pc-tags">
           ${p.tipo ? `<span class="tag tag-tipo">${esc(p.tipo)}</span>` : ''}
-          ${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : ''}
+          ${p.subtipo ? `<span class="tag tag-sub">${esc(p.subtipo)}</span>` : (p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : '')}
           ${estadoChip(p.estado)}
         </div>
         <div class="pc-loc">
@@ -469,6 +471,7 @@
         ${f('maps', 'Google Maps')}
         ${f('responsable', 'Responsable')}
         ${sel('tipo', 'Tipo de prospecto', ['', ...DB.TIPOS_PROSPECTO])}
+        ${sel('subtipo', 'Rubro (si es del canal ferretero)', ['', ...DB.SUBTIPOS])}
         ${sel('metodoContacto', 'Método de contacto', ['', ...DB.METODOS_CONTACTO])}
         ${sel('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id))}
         ${sel('prioridad', 'Prioridad (A = más cerca de la base)', ['', ...DB.PRIORIDADES])}

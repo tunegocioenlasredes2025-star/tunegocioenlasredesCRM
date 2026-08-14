@@ -19,6 +19,23 @@
   const TIPO_PAUTA = 'Empresas para pauta MF';
   const TIPOS_PROSPECTO = [TIPO_FERRETERIA, TIPO_PAUTA];
 
+  // Subgrupos del canal ferretero. Comparten la misma recorrida a pie pero se le
+  // vende distinto: la pinturería vive del color y la foto, el corralón del precio y el stock.
+  const SUBTIPOS = ['Ferretería', 'Bulonería', 'Pinturería', 'Sanitarios', 'Corralón / materiales', 'Electricidad'];
+
+  // Clasifica por el nombre del negocio y su rubro. El orden importa: lo más
+  // específico primero, porque "Ferretería y Sanitarios" tiene que caer en Sanitarios.
+  function subtipoDe(nombre, rubro) {
+    const t = (String(nombre || '') + ' ' + String(rubro || ''))
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    if (/pinturer|pintura|color|latex|esmalte/.test(t)) return 'Pinturería';
+    if (/buloner|bulon|tornill|fijacion/.test(t)) return 'Bulonería';
+    if (/sanitari|griferia|plomeri|baño/.test(t)) return 'Sanitarios';
+    if (/corralon|materiales|construccion|calera|cemento|maderer/.test(t)) return 'Corralón / materiales';
+    if (/electric|iluminacion|cable/.test(t)) return 'Electricidad';
+    return 'Ferretería';
+  }
+
   // Los estados "Contactado por ..." dicen por QUÉ CANAL ya se tocó al prospecto.
   // Se setean solos al abrir WhatsApp/Email/Instagram desde "Generar mensaje" (ver marcarContacto en app.js)
   // y se combinan: si ya estaba contactado por Mail y se abre WhatsApp, pasa a "Contactado por Mail + WhatsApp".
@@ -339,7 +356,7 @@
       nombre: '', empresa: '', rubro: '', direccion: '', ciudad: '', provincia: '', pais: 'Argentina',
       telefono: '', whatsapp: '', email: '', instagram: '', facebook: '', linkedin: '', sitioWeb: '',
       metodoContacto: '', estado: 'Prospecto', observaciones: '',
-      tipo: '', servicios: [], prioridad: '', segmento: '', mensaje: '',
+      tipo: '', subtipo: '', servicios: [], prioridad: '', segmento: '', mensaje: '',
       // Prospección de campo: cómo lo atacamos, cuánto vale y con qué frase entramos.
       canal: '', oportunidad: '', gancho: '',
       maps: '', horarios: '', puntuacion: '', reseñas: '',
@@ -383,6 +400,8 @@
         else if (seg.indexOf('Ferreterías') >= 0) cambios.tipo = TIPO_FERRETERIA;
         else if (/ferreter|buloner|corral[oó]n/i.test(String(p.rubro || ''))) cambios.tipo = TIPO_FERRETERIA;
       }
+      const tipoFinal = cambios.tipo || p.tipo;
+      if (tipoFinal === TIPO_FERRETERIA && !p.subtipo) cambios.subtipo = subtipoDe(p.empresa || p.nombre, p.rubro);
       if (p.estado && ESTADOS_LEGACY[p.estado]) cambios.estado = ESTADOS_LEGACY[p.estado];
       if (p.prioridad && PRIORIDADES_LEGACY[p.prioridad]) cambios.prioridad = PRIORIDADES_LEGACY[p.prioridad];
       const met = String(p.metodoContacto || '');
@@ -775,7 +794,7 @@
   /* ---------- API pública ---------- */
   window.DB = {
     METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF, CANALES_CONTACTO,
-    TIPOS_PROSPECTO, TIPO_FERRETERIA, TIPO_PAUTA, migrarProspectos, sincronizarTodo,
+    TIPOS_PROSPECTO, TIPO_FERRETERIA, TIPO_PAUTA, SUBTIPOS, subtipoDe, migrarProspectos, sincronizarTodo,
     CANALES, canalColor: (id) => (CANALES.find(c => c.id === id) || {}).color || '#8b94a8',
     clasificarServicios, prioridadDe, migrarServicios,
     CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
