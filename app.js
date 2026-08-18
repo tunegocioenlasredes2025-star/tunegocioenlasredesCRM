@@ -1057,6 +1057,82 @@
     }
   }
 
+  // ── Mensajes de WhatsApp que no se repiten ───────────────────────────────
+  // WhatsApp banea por PATRON: si 30 personas reciben el mismo texto, lo detecta.
+  // Cada prospecto recibe una apertura, un cuerpo y un cierre distintos, elegidos
+  // de forma estable a partir de su id (el mismo prospecto siempre da el mismo
+  // mensaje, pero dos prospectos seguidos nunca dan el mismo).
+  function hashId(s) {
+    let h = 0;
+    for (let i = 0; i < String(s).length; i++) h = (h * 31 + String(s).charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+  const pick = (arr, id, salt) => arr[(hashId(id + '|' + salt)) % arr.length];
+
+  // Dato concreto y verificable del negocio: es lo que hace que no parezca plantilla.
+  function dsGancho(p) {
+    const rv = parseInt(p['reseñas'] || p.resenas || 0, 10) || 0;
+    const pu = String(p.puntuacion || '').replace(',', '.');
+    const tieneIG = p.instagram && !/^no|no encontrado/i.test(String(p.instagram));
+    const tieneWeb = p.sitioWeb && !/^no|no tiene/i.test(String(p.sitioWeb));
+    const out = [];
+    if (rv >= 100 && pu) out.push(`vi que tienen ${rv} reseñas en Google con ${pu} de promedio`);
+    else if (rv >= 30) out.push(`vi que tienen ${rv} reseñas en Google`);
+    if (tieneIG && !tieneWeb) out.push(`los encontré por Instagram (${p.instagram})`);
+    if (p.ciudad) out.push(`vi que están en ${p.ciudad}`);
+    return out;
+  }
+
+  function mensajeWhatsApp(p) {
+    const id = p.id || (p.empresa || '') + (p.ciudad || '');
+    const emp = p.empresa || p.nombre || '';
+    const ciu = p.ciudad || 'la zona';
+    const tieneWeb = p.sitioWeb && !/^no|no tiene/i.test(String(p.sitioWeb));
+    const tieneIG = p.instagram && !/^no|no encontrado/i.test(String(p.instagram));
+    const datos = dsGancho(p);
+    const dato = datos.length ? pick(datos, id, 'd') : '';
+
+    const saludos = ['Hola', 'Buenas', 'Hola, ¿qué tal?', 'Buen día', '¿Cómo va?'];
+    const presenta = [
+      'Soy Mateo, de Tu Negocio En Las Redes, una agencia acá de zona oeste',
+      'Te escribo de Tu Negocio En Las Redes, somos una agencia de zona oeste',
+      'Soy Mateo, trabajo con negocios de la zona haciendo webs y redes',
+      'Te contacto de Tu Negocio En Las Redes, agencia de la zona',
+    ];
+    // El medio del mensaje cambia según lo que le falta al negocio, que es el motivo real del contacto.
+    let cuerpos;
+    if (!tieneWeb && tieneIG) cuerpos = [
+      `Estuve viendo ${emp} y me llamó la atención que tienen el Instagram andando pero no tienen página web.`,
+      `Vi el Instagram de ${emp} y está bueno, pero cuando los busqué en Google no encontré página propia.`,
+      `Me puse a mirar ${emp} y noté que están en Instagram pero les falta la web.`,
+    ];
+    else if (!tieneWeb) cuerpos = [
+      `Estuve mirando ${emp} y vi que no tienen página web propia.`,
+      `Busqué ${emp} en Google y no aparece una web del negocio.`,
+      `Vi que ${emp} no tiene sitio web, y en su rubro el cliente googlea antes de ir.`,
+    ];
+    else cuerpos = [
+      `Estuve viendo la web de ${emp} y creo que se le puede sacar bastante más provecho.`,
+      `Miré el sitio de ${emp} y hay cosas que hoy le estarían costando consultas.`,
+    ];
+
+    const cierres = [
+      '¿Te puedo mandar un ejemplo de cómo quedaría? Sin compromiso.',
+      'Si querés te muestro una demo hecha para el negocio y decidís con eso a la vista.',
+      '¿Te interesa que te pase una idea concreta? Son 2 minutos de lectura.',
+      'Te puedo armar una muestra gratis para que veas cómo se vería. ¿Te sirve?',
+      '¿Lo charlamos? Si no es el momento, no hay drama.',
+    ];
+
+    const saludo = pick(saludos, id, 's');
+    const quien = pick(presenta, id, 'q');
+    const cuerpo = pick(cuerpos, id, 'c');
+    const cierre = pick(cierres, id, 'f');
+    const linea = dato ? ` ${dato.charAt(0).toUpperCase() + dato.slice(1)}.` : '';
+
+    return `${saludo}! ${quien}.\n\n${cuerpo}${linea}\n\n${cierre}`;
+  }
+
   function generarMensaje(p, canal) {
     const emp = p.empresa || p.nombre || 'tu negocio';
     const nombre = nombreNat(p);
@@ -1072,7 +1148,11 @@
       return cuerpo;
     }
 
-    // 2) Fallback para empresas de pauta sin mensaje propio: se vende PAUTA, no servicios de agencia.
+    // 2) WhatsApp a un prospecto comun: mensaje variado para no repetir texto entre contactos.
+    //    Mandar 30 veces el mismo texto es lo que dispara el baneo de WhatsApp.
+    if (canal === 'WhatsApp' && !esPauta(p)) return mensajeWhatsApp(p);
+
+    // 3) Fallback para empresas de pauta sin mensaje propio: se vende PAUTA, no servicios de agencia.
     if (esPauta(p)) {
       const pitch = `Les escribo de Mundo Ferretero, el medio del canal ferretero (mundoferretero.com.ar). Publicamos contenido para dueños de ferreterías: gestión, productos y tendencias. ${emp} le vende justamente a ese público, por eso quería proponerles una reunión breve para mostrarles nuestro alcance y las opciones de pauta.`;
       const planes = MF_PLANES.map(x => `· Plan ${x[0]} — ${x[1]}: ${x[2]}`).join('\n');
@@ -1928,7 +2008,7 @@
     importarBase,
     clearFiltros: () => { Object.keys(pFilters).forEach(k => pFilters[k] = ''); pPage = 1; renderProspectos(); },
     buscarRun, buscarAdd, buscarAddAll,
-    analizarProspecto, genMensaje, copiarMsg, marcarContacto,
+    analizarProspecto, genMensaje, copiarMsg, marcarContacto, mensajeWhatsApp,
     nuevoCliente, editarCliente, borrarCliente, abrirCliente,
     quitarSrv: (cid, sid) => { DB.quitarServicioCliente(cid, sid); abrirCliente(cid, 'servicios'); },
     setContEstado: (cid, ctid, v) => { DB.actualizarContenido(cid, ctid, { estado: v }); },
