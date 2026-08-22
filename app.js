@@ -66,6 +66,10 @@
     $('#confirmOk').onclick = () => { closeModal(); onOk(); };
   }
 
+  /* Helpers que usa el módulo de Campañas (campanas-vista.js). Se exponen
+     acá para no tener dos versiones del mismo toast y del mismo modal. */
+  window.TNRUI = { esc, toast, openModal, closeModal, confirmDialog, fmtDate, fmtDateTime, todayStr };
+
   /* ---------- Chips ---------- */
   function estadoChip(estado) {
     const c = DB.estadoColor(estado);
@@ -115,8 +119,15 @@
   }
   function render() {
     if (searchTerm) return renderSearch();
-    ({ dashboard: renderDashboard, prospectos: renderProspectos, buscar: renderBuscar, clientes: renderClientes, calendario: renderCalendario, tareas: renderTareas, productividad: renderProductividad, notificaciones: renderNotificaciones }[current] || renderDashboard)();
+    ({ dashboard: renderDashboard, prospectos: renderProspectos, buscar: renderBuscar, clientes: renderClientes, campanas: renderCampanas, calendario: renderCalendario, tareas: renderTareas, productividad: renderProductividad, notificaciones: renderNotificaciones }[current] || renderDashboard)();
     updateNotifBadge();
+  }
+
+  // Campañas vive en su propio archivo (campanas-vista.js) porque este ya
+  // es grande. Si todavía no cargó, se avisa en vez de romper la pantalla.
+  function renderCampanas() {
+    if (window.CampanasVista) return window.CampanasVista.render(view);
+    view.innerHTML = '<div class="empty"><h3>Campañas no disponible</h3><p>No se pudo cargar el módulo. Recargá la página.</p></div>';
   }
 
   $$('.nav-item').forEach(b => b.onclick = () => setView(b.dataset.view));

@@ -561,3 +561,84 @@ tbody tr:hover .row-actions { opacity: 1; }
   padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 700;
   border: 1px solid transparent;
 }
+
+/* ============================================================
+   Campañas de WhatsApp
+   Usa los mismos tokens que el resto del CRM: nada de colores
+   ni medidas sueltas, para que se vea como una parte más.
+   ============================================================ */
+
+/* Aviso grande: falta correr el SQL, o se cayó la carga */
+.cmp-aviso { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 20px;
+  border-color: var(--border-2); }
+.cmp-aviso-ic { color: var(--yellow); flex-shrink: 0; margin-top: 1px; }
+.cmp-aviso h3 { font-size: 15px; margin-bottom: 5px; }
+.cmp-aviso p { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.cmp-aviso code { background: var(--bg); border: 1px solid var(--border);
+  padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
+.cmp-aviso-error .cmp-aviso-ic { color: var(--red); }
+
+/* Nota chica en línea */
+.cmp-nota { display: flex; gap: 8px; align-items: center; font-size: 12.5px;
+  color: var(--text-dim); background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 10px 12px; margin-bottom: 18px; line-height: 1.5; }
+.cmp-nota svg { flex-shrink: 0; color: var(--text-faint); }
+.cmp-nota-warn { border-color: #f59e4255; background: rgba(245,158,66,.09); color: var(--text); }
+.cmp-nota-warn svg { color: var(--orange); }
+
+/* Editor a dos columnas: config a la izquierda, cómo queda a la derecha */
+.cmp-editor { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 18px; align-items: start; }
+.cmp-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cmp-col-right { position: sticky; top: 18px; }
+
+.cmp-check { display: flex; align-items: center; gap: 9px; margin-top: 14px;
+  font-size: 13px; cursor: pointer; }
+.cmp-check input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.cmp-dias { margin-top: 14px; }
+.cmp-inline { display: flex; align-items: center; gap: 9px; }
+.cmp-inline input { width: 90px; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); padding: 8px 11px; border-radius: var(--r-sm); font-size: 13px; }
+
+/* Botones para meter datos del prospecto en el mensaje */
+.cmp-vars { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-top: 12px; font-size: 12px; }
+.cmp-var { cursor: pointer; transition: all .15s; }
+.cmp-var:hover { border-color: var(--accent); color: var(--accent); background: rgba(28,159,226,.12); }
+
+/* Resumen de a cuántos les llega */
+.cmp-resumen .cmp-big { display: flex; flex-direction: column; gap: 2px; }
+.cmp-resumen .cmp-big strong { font-size: 38px; font-weight: 800; letter-spacing: -1px;
+  line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.cmp-resumen .cmp-big span { font-size: 13px; color: var(--text-dim); }
+.cmp-tiempo { display: flex; align-items: center; gap: 7px; font-size: 12.5px;
+  color: var(--text-dim); margin-top: 12px; }
+.cmp-tiempo strong { color: var(--text); }
+
+.cmp-excl { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cmp-excl-tit { font-size: 12px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text-faint); font-weight: 600; margin-bottom: 9px; }
+.cmp-excl-row { display: flex; justify-content: space-between; gap: 12px;
+  font-size: 12.5px; padding: 4px 0; color: var(--text-dim); }
+.cmp-excl-row strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Vista previa del mensaje */
+.cmp-quien { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.cmp-burbuja { background: var(--bg); border: 1px solid var(--border);
+  border-radius: 14px 14px 14px 4px; padding: 13px 15px; font-size: 13.5px;
+  line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.cmp-otro { margin-top: 12px; padding: 7px 12px; font-size: 12.5px; }
+
+/* Lista y detalle */
+.cmp-pct { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.cmp-back { padding: 4px 0; margin-bottom: 6px; font-size: 12.5px; }
+.cmp-sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 7px; font-size: 12.5px; }
+.cmp-progreso { margin-bottom: 22px; }
+.cmp-progreso-top { display: flex; justify-content: space-between; gap: 12px;
+  font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; }
+.cmp-progreso-top strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Mobile: una sola columna y el resumen arriba, que es lo que se mira */
+@media (max-width: 900px) {
+  .cmp-editor { grid-template-columns: 1fr; }
+  .cmp-col-right { position: static; order: -1; }
+  .cmp-resumen .cmp-big strong { font-size: 32px; }
+}
