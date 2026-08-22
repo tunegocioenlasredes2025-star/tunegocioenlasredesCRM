@@ -20,8 +20,36 @@
   --cyan: #3fb5ee;
   --pink: #f472b6;
   --shadow: 0 10px 40px rgba(0,0,0,.5);
+  /* El resplandor de fondo del login y de la bienvenida. Es un token para que
+     cambie con el tema; antes estaba escrito a mano en dos lugares. */
+  --halo: #12345e;
   --r: 12px;
   --r-sm: 8px;
+}
+
+/* ============================================================
+   TEMA OSCURO
+   ------------------------------------------------------------
+   Mismo sistema, otro fondo: negro neutro en vez del azul marino de
+   marca. El celeste del logo se queda — es lo que identifica a TNR y
+   sobre negro se lee todavía mejor. Se elige desde el menú lateral
+   y queda guardado en ESTE aparato: el celular puede estar en oscuro
+   y la compu en azul.
+   ============================================================ */
+:root[data-tema="oscuro"] {
+  --bg: #0a0a0d;
+  --bg-2: #121217;
+  --panel: #17171e;
+  --panel-2: #202028;
+  --border: #2a2a34;
+  --border-2: #3b3b48;
+  --text: #ececf2;
+  --text-dim: #9d9dab;
+  /* Medido: #6d6d7b daba 3.5:1 sobre los paneles, por debajo del mínimo
+     legible para texto chico. Con #8a8a99 sube a 5.2:1. */
+  --text-faint: #8a8a99;
+  --shadow: 0 10px 40px rgba(0,0,0,.75);
+  --halo: #24242e;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -861,7 +889,7 @@ tbody tr:hover .row-actions { opacity: 1; }
 .so-days-quick button { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px; padding: 5px 11px; font-size: 11.5px; }
 
 /* ---- Login ---- */
-.login-screen { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: radial-gradient(1200px 600px at 50% -10%, #12345e, var(--bg)); }
+.login-screen { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: radial-gradient(1200px 600px at 50% -10%, var(--halo), var(--bg)); }
 .login-card {
   width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
   border-radius: 16px; padding: 26px 22px; box-shadow: var(--shadow);
@@ -955,7 +983,7 @@ tbody tr:hover .row-actions { opacity: 1; }
   position: fixed; inset: 0; z-index: 200;
   display: grid; place-items: center;
   padding: 24px;
-  background: radial-gradient(900px 500px at 50% 32%, #123a68, var(--bg) 72%);
+  background: radial-gradient(900px 500px at 50% 32%, var(--halo), var(--bg) 72%);
   transition: opacity .4s ease;
 }
 .splash.salir { opacity: 0; pointer-events: none; }
@@ -1124,3 +1152,20 @@ tbody tr:hover .row-actions { opacity: 1; }
 .so-fold-x { display: inline-flex; color: var(--text-faint); transition: transform .2s; }
 .so-fold[open] .so-fold-x { transform: rotate(90deg); }
 .so-fold > .so-counters { padding: 0 14px 14px; }
+
+/* ---- Elegir tema (menú lateral) ---- */
+.tema-pick { display: flex; align-items: center; gap: 8px; padding: 0 10px 10px; }
+.tema-pick > span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-faint); flex: 1; }
+.tema-pick button {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+  border: 1px solid var(--border-2); background: var(--panel); padding: 0;
+  transition: border-color .15s, transform .12s;
+}
+.tema-pick button:active { transform: scale(.92); }
+.tema-pick button i { display: block; width: 15px; height: 15px; border-radius: 4px; }
+.tema-pick button[data-tema="azul"] i { background: linear-gradient(135deg, #0b2240 50%, #1C9FE2 50%); }
+.tema-pick button[data-tema="oscuro"] i { background: linear-gradient(135deg, #0a0a0d 50%, #1C9FE2 50%); }
+.tema-pick button.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent); }
+
+/* La bienvenida se puede saltear con un toque. */
+.splash { cursor: pointer; }

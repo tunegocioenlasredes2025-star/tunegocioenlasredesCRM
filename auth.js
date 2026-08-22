@@ -116,11 +116,15 @@
 
     alListo();  // el CRM se arma detrás de la cortina
 
-    const duracion = quieto ? 900 : 2000;
-    setTimeout(() => {
+    let cerrada = false;
+    const cerrar = () => {
+      if (cerrada) return;
+      cerrada = true;
       cont.classList.add('salir');
-      setTimeout(() => { cont.hidden = true; cont.classList.remove('salir'); cont.innerHTML = ''; }, 420);
-    }, duracion);
+      setTimeout(() => { cont.hidden = true; cont.classList.remove('salir'); cont.innerHTML = ''; cont.onclick = null; }, 420);
+    };
+    cont.onclick = cerrar;                       // un toque y se saltea
+    setTimeout(cerrar, quieto ? 900 : 2000);
   }
 
   /* ---------- Pantalla de login ---------- */

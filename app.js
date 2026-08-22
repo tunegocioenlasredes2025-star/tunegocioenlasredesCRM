@@ -1815,6 +1815,40 @@
     } else { try { new Notification(titulo, opts); } catch (_) {} }
   }
 
+  /* ============================================================
+     TEMA
+     ------------------------------------------------------------
+     Dos paletas sobre el mismo sistema: "azul" (el marino de marca) y
+     "oscuro" (negro neutro). Sólo cambian los colores base; el celeste
+     del logo se queda en las dos.
+
+     Se guarda en ESTE aparato, no en la nube: el celular puede estar en
+     oscuro y la compu en azul, y a nadie le cambia el tema porque el otro
+     lo tocó. La aplicación inicial la hace un script en el <head>, antes
+     de pintar, para que no haya parpadeo al abrir.
+     ============================================================ */
+  const TEMAS = { azul: '#0b2240', oscuro: '#0a0a0d' };
+  function temaActual() {
+    try { return localStorage.getItem('tnr_tema') || 'azul'; } catch (e) { return 'azul'; }
+  }
+  function aplicarTema(id) {
+    if (!TEMAS[id]) id = 'azul';
+    if (id === 'azul') document.documentElement.removeAttribute('data-tema');
+    else document.documentElement.setAttribute('data-tema', id);
+    try { localStorage.setItem('tnr_tema', id); } catch (e) {}
+    // La barra del navegador en el celular también tiene que acompañar.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', TEMAS[id]);
+    $$('#temaPick button').forEach(b => b.classList.toggle('on', b.dataset.tema === id));
+  }
+  function initTema() {
+    aplicarTema(temaActual());
+    $$('#temaPick button').forEach(b => b.onclick = () => {
+      aplicarTema(b.dataset.tema);
+      toast(b.dataset.tema === 'oscuro' ? 'Tema oscuro' : 'Tema azul TNR', 'ok');
+    });
+  }
+
   /* ---------- Quién está usando el CRM ---------- */
   function pintarUsuario() {
     const p = window.Auth && Auth.perfil;
@@ -1832,6 +1866,7 @@
   /* ---------- Arranque de la app (ya con sesión) ---------- */
   function arrancarApp() {
     if (window.Icons) Icons.paintStatic(); // iconos estáticos del sidebar/topbar/modal
+    initTema();
     initPWA();
     pintarUsuario();
     DB.onRemoteChange = () => { searchTerm ? renderSearch() : render(); };
@@ -1861,17 +1896,22 @@
   }
 
   /* ---------- Init: primero la puerta, después la casa ---------- */
+  function entrarAlCRM() {
+    document.getElementById('app').hidden = false;
+    arrancarApp();
+  }
   if (window.Auth) {
     Auth.init().then(sesion => {
-      if (sesion) { document.getElementById('app').hidden = false; arrancarApp(); }
+      // Con sesión abierta también se muestra la bienvenida: el CRM se arma
+      // detrás y así no se ve el armado a medio hacer. Se puede saltear con
+      // un toque.
+      if (sesion) Auth.bienvenida(Auth.perfil, entrarAlCRM);
       else Auth.mostrarLogin(() => arrancarApp());
     }).catch(e => {
       console.error('Auth', e);
-      document.getElementById('app').hidden = false;
-      arrancarApp();
+      entrarAlCRM();
     });
   } else {
-    document.getElementById('app').hidden = false;
-    arrancarApp();
+    entrarAlCRM();
   }
 })();
