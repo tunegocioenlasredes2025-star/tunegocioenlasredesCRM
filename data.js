@@ -8,7 +8,7 @@
   'use strict';
 
   const KEY = 'tnr_crm_v1';
-  const TABLES = ['prospectos', 'clientes', 'tareas', 'eventos', 'metas', 'proyectos', 'rutinas']; // colecciones en la nube
+  const TABLES = ['prospectos', 'clientes', 'tareas', 'eventos', 'metas', 'proyectos', 'rutinas', 'ajustes']; // colecciones en la nube
 
   /* ---------- Catálogos ---------- */
   // Sólo los canales que se trabajan desde ESTE CRM. Las llamadas en frío van al CRM de vendedores.
@@ -171,7 +171,7 @@
     { id: 'mant',       cat: 'Mantenimiento',    nombre: 'Mantenimiento',      precio: 50000,  recurrente: true,  detalle: 'SEO · Optimización · Actualizaciones · Soporte', contenidos: {} },
   ];
 
-  function defaultData() { return { prospectos: [], clientes: [], tareas: [], eventos: [], metas: [], proyectos: [], rutinas: [], tiempos: [], _seeded: false }; }
+  function defaultData() { return { prospectos: [], clientes: [], tareas: [], eventos: [], metas: [], proyectos: [], rutinas: [], ajustes: [], tiempos: [], _seeded: false }; }
 
   // Categorías de eventos del calendario (con color)
   const CATEGORIAS_EVENTO = [
@@ -744,6 +744,7 @@
       sistema: '',                // 'prospeccion' | 'gestion' | 'optimizacion'
       proyectoId: '', rutinaId: '',
       fecha: '', turno: '',       // 'Mañana' | 'Tarde' | ''
+      recordarHora: '',           // 'HH:MM' — avisame a esta hora ese día
       prioridad: 'Media', estado: 'Pendiente',
       objetivo: 0, avance: 0, unidad: '',   // contador de volumen (15 mails, 20 contactos…)
       vinculoTipo: '', vinculoId: '',
@@ -845,6 +846,35 @@
   }
 
   /* ============================================================
+     AJUSTES por persona — a qué hora quiere que le avisen
+     ------------------------------------------------------------
+     Una fila por usuario (id = 'mateo', 'santiago'). Se guarda en la nube
+     porque el aviso lo manda el servidor: si viviera en el celular, el
+     recordatorio no llegaría con la app cerrada.
+     ============================================================ */
+  function ajustesBase(id) {
+    return {
+      id,
+      avisos: true,          // interruptor general de los recordatorios
+      manana: '09:00',       // "esto es lo que tenés hoy"
+      tarde: '15:00',        // "te falta esto"
+      cierre: '20:00',       // "marcá lo que hiciste"
+      avisarTareas: true,    // recordatorios de tareas con hora propia
+    };
+  }
+  function getAjustes(id) {
+    const a = (load().ajustes || []).find(x => x.id === id);
+    return Object.assign(ajustesBase(id), a || {});
+  }
+  function guardarAjustes(id, cambios) {
+    let a = (load().ajustes || []).find(x => x.id === id);
+    if (!a) { a = ajustesBase(id); load().ajustes.unshift(a); }
+    Object.assign(a, cambios);
+    save(); Cloud.push('ajustes', a);
+    return a;
+  }
+
+  /* ============================================================
      RUTINAS — plantillas de las tareas que se repiten
      ------------------------------------------------------------
      Una rutina no es una tarea: es la REGLA que dice "esto va todos los
@@ -859,7 +889,7 @@
       sistema: 'prospeccion', proyectoId: '',
       responsable: 'ambos',     // 'mateo' | 'santiago' | 'ambos' | 'equipo'
       dias: [1, 2, 3, 4, 5, 6], // 0=domingo … 6=sábado
-      turno: '', prioridad: 'Media',
+      turno: '', prioridad: 'Media', recordarHora: '',
       objetivo: 0, unidad: '',
       activa: true, desde: new Date().toISOString().slice(0, 10),
     }, d);
@@ -930,7 +960,9 @@
   async function guardarPushSub(sub) {
     if (!Cloud.enabled || !sub || !sub.endpoint) return false;
     try {
-      const { error } = await Cloud.client.from('push_subs').upsert({ id: sub.endpoint, data: sub, updated_at: nowISO() });
+      const usuario = (window.Auth && Auth.usuarioId) || '';
+      const { error } = await Cloud.client.from('push_subs')
+        .upsert({ id: sub.endpoint, data: sub, usuario, updated_at: nowISO() });
       if (error) { console.error('push_subs', error.message); return false; }
       return true;
     } catch (e) { console.error('push_subs', e); return false; }
@@ -1008,6 +1040,7 @@
     PRIORIDADES_TAREA, PRIO_TAREA_COLOR, UNIDADES, unidadCorta, TURNOS, DIAS_CORTOS, RECURRENCIAS, ESTADOS_PROYECTO,
     getProyectos, getProyecto, crearProyecto, actualizarProyecto, eliminarProyecto,
     getRutinas, getRutina, crearRutina, actualizarRutina, eliminarRutina,
+    getAjustes, guardarAjustes,
     cloudPush: (tabla, obj) => Cloud.push(tabla, obj),
     get tablasFaltantes() { return Cloud.enabled ? Cloud.faltantes.slice() : []; },
     guardarLocal: save,

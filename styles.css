@@ -916,3 +916,28 @@ tbody tr:hover .row-actions { opacity: 1; }
   .so-count-num { min-width: 56px; }
   .so-head .head-actions .btn-label { display: none; }
 }
+
+/* ---- Recordatorios ---- */
+.so-linea {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.so-linea:last-of-type { border-bottom: 0; }
+.so-linea > span:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.so-linea strong { font-size: 13.5px; font-weight: 600; }
+.so-linea em { font-style: normal; font-size: 11.5px; color: var(--text-faint); }
+
+.so-horas { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 14px 0; }
+.so-horas .field { display: flex; flex-direction: column; gap: 5px; }
+.so-horas .field > span { font-size: 12px; color: var(--text-dim); font-weight: 600; }
+.so-horas .field em { font-style: normal; font-size: 11px; color: var(--text-faint); }
+.so-horas input[type="time"] {
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--r-sm); padding: 11px 12px; font-size: 16px; min-height: 46px;
+  width: 100%; font-variant-numeric: tabular-nums;
+}
+.so-horas input[type="time"]:focus { outline: none; border-color: var(--accent); }
+
+@media (min-width: 620px) {
+  .so-horas { grid-template-columns: repeat(3, 1fr); }
+}

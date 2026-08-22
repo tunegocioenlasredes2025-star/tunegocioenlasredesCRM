@@ -538,6 +538,93 @@
   }
 
   /* ============================================================
+     VISTA · RECORDATORIOS
+     ============================================================ */
+  function renderAvisos() {
+    const uid = yo();
+    const cfg = DB.getAjustes(uid);
+    const permiso = window.Recordatorios ? Recordatorios.estadoPermiso() : 'no-soportado';
+    const conHora = DB.getRutinas().filter(r => r.recordarHora);
+    const estado = {
+      'granted': { txt: 'Activadas en este dispositivo', color: 'var(--green)', ic: 'check' },
+      'denied': { txt: 'Bloqueadas en este navegador', color: 'var(--red)', ic: 'alert' },
+      'default': { txt: 'Sin activar en este dispositivo', color: 'var(--orange)', ic: 'bell' },
+      'no-soportado': { txt: 'Este navegador no soporta avisos', color: 'var(--text-faint)', ic: 'alert' },
+    }[permiso];
+
+    host.innerHTML = `
+      <div class="so-head">
+        <div><h1>Recordatorios</h1><div class="sub">A qué hora querés que te avise el celular</div></div>
+      </div>
+
+      <section class="panel so-panel">
+        <div class="panel-title" style="color:${estado.color}">${icon(estado.ic, 16)} ${estado.txt}</div>
+        <p style="margin:0 0 12px;font-size:13px;color:var(--text-dim);line-height:1.55">
+          Hay que activarlas <strong>una vez en cada aparato</strong> (el celular y la compu son dos permisos distintos).
+          Para que lleguen con la app cerrada, en el celular conviene instalar el CRM como aplicación:
+          en el navegador, menú → “Agregar a pantalla de inicio”.
+        </p>
+        ${permiso === 'denied'
+          ? `<p class="so-note" style="margin:0">Están bloqueadas: hay que habilitarlas desde el candado de la barra de direcciones y recargar.</p>`
+          : `<button class="btn-primary" onclick="SO.activarAvisos()">${icon('bell')} ${permiso === 'granted' ? 'Volver a registrar este dispositivo' : 'Activar en este dispositivo'}</button>`}
+      </section>
+
+      <section class="panel so-panel">
+        <div class="panel-title">${icon('clock', 16)} Los tres avisos del día · ${esc(nombreDe(uid))}</div>
+        <form id="soFormAvisos">
+          <label class="so-linea">
+            <span><strong>Recibir recordatorios</strong><em>Si lo apagás, no llega ninguno.</em></span>
+            <span class="so-toggle"><input type="checkbox" name="avisos" ${cfg.avisos ? 'checked' : ''} /><span></span></span>
+          </label>
+          <div class="so-horas">
+            <label class="field"><span>A la mañana</span><input type="time" name="manana" value="${esc(cfg.manana || '')}" />
+              <em>“Tenés 10 tareas hoy: 15 mails, 20 contactos…”</em></label>
+            <label class="field"><span>A la tarde</span><input type="time" name="tarde" value="${esc(cfg.tarde || '')}" />
+              <em>“Te faltan 4 de 10.”</em></label>
+            <label class="field"><span>Al cerrar el día</span><input type="time" name="cierre" value="${esc(cfg.cierre || '')}" />
+              <em>“Marcá lo que hiciste.”</em></label>
+          </div>
+          <label class="so-linea">
+            <span><strong>Avisar tarea por tarea</strong><em>Sólo las que tengan hora propia cargada.</em></span>
+            <span class="so-toggle"><input type="checkbox" name="avisarTareas" ${cfg.avisarTareas ? 'checked' : ''} /><span></span></span>
+          </label>
+          <div class="form-foot" style="border:0;padding-top:14px">
+            <button type="button" class="btn-secondary" onclick="SO.probarAviso()">${icon('bell')} Probar ahora</button>
+            <button type="submit" class="btn-primary">Guardar horarios</button>
+          </div>
+        </form>
+        <p class="so-note">Dejá una hora vacía para apagar ese aviso. Los horarios son tuyos: Santiago tiene los suyos.</p>
+      </section>
+
+      <section class="panel so-panel">
+        <div class="panel-title">${icon('repeat', 16)} Rutinas con hora propia</div>
+        ${conHora.length
+          ? conHora.map(r => `<div class="so-linea" style="cursor:pointer" onclick="SO.editarRutina('${r.id}')">
+              <span><strong>${esc(r.titulo)}</strong><em>${esc(DB.responsableDe(r.responsable === 'ambos' ? 'equipo' : r.responsable).corto)}</em></span>
+              <strong style="font-variant-numeric:tabular-nums">${esc(r.recordarHora)}</strong>
+            </div>`).join('')
+          : `<p style="margin:0;font-size:13px;color:var(--text-dim)">Ninguna rutina tiene hora propia todavía. Se le pone desde
+             <button class="btn-ghost" style="display:inline-flex;width:auto;padding:4px 10px" onclick="SO.ir('rutinas')">Rutinas</button>,
+             en el campo “Avisarme a las”.</p>`}
+      </section>
+    `;
+
+    document.getElementById('soFormAvisos').onsubmit = e => {
+      e.preventDefault();
+      const f = e.target;
+      DB.guardarAjustes(uid, {
+        avisos: f.avisos.checked,
+        avisarTareas: f.avisarTareas.checked,
+        manana: f.manana.value,
+        tarde: f.tarde.value,
+        cierre: f.cierre.value,
+      });
+      toast('Horarios guardados', 'ok');
+      refrescar();
+    };
+  }
+
+  /* ============================================================
      FORMULARIOS
      ============================================================ */
   function optsResp(sel, conAmbos) {
@@ -574,6 +661,7 @@
       <div class="field"><label>Prioridad</label><select name="prioridad">${DB.PRIORIDADES_TAREA.map(p => `<option ${t.prioridad === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
       <div class="field"><label>Fecha</label><input type="date" name="fecha" value="${esc(t.fecha || '')}" /></div>
       <div class="field"><label>Turno</label><select name="turno">${DB.TURNOS.map(x => `<option value="${x}" ${t.turno === x ? 'selected' : ''}>${x || 'Sin turno'}</option>`).join('')}</select></div>
+      <div class="field"><label>Avisarme a las</label><input type="time" name="recordarHora" value="${esc(t.recordarHora || '')}" /></div>
       <div class="field"><label>Contador (opcional)</label><input type="number" min="0" name="objetivo" value="${+t.objetivo || ''}" placeholder="Ej: 15" /></div>
       <div class="field"><label>De qué</label><select name="unidad">${optsUnidad(t.unidad || '')}</select></div>
       <div class="field full"><label>Notas</label><textarea name="observaciones" rows="2">${esc(t.observaciones || '')}</textarea></div>
@@ -594,6 +682,7 @@
       <div class="field"><label>Sistema</label><select name="sistema">${optsSistema(r.sistema || 'prospeccion')}</select></div>
       <div class="field"><label>Proyecto</label><select name="proyectoId">${optsProyecto(r.proyectoId || '')}</select></div>
       <div class="field"><label>Turno</label><select name="turno">${DB.TURNOS.map(x => `<option value="${x}" ${r.turno === x ? 'selected' : ''}>${x || 'Sin turno'}</option>`).join('')}</select></div>
+      <div class="field"><label>Avisarme a las</label><input type="time" name="recordarHora" value="${esc(r.recordarHora || '')}" /></div>
       <div class="field"><label>Cuánto</label><input type="number" min="0" name="objetivo" value="${+r.objetivo || ''}" placeholder="Ej: 15" /></div>
       <div class="field"><label>De qué</label><select name="unidad">${optsUnidad(r.unidad || '')}</select></div>
       <div class="field"><label>Prioridad</label><select name="prioridad">${DB.PRIORIDADES_TAREA.map(p => `<option ${(r.prioridad || 'Media') === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
@@ -647,6 +736,25 @@
     verPersona(id) { quien = id; filtros.resp = id; refrescar(); },
     filtrar(k, v) { filtros[k] = v; if (k === 'resp') quien = v; refrescar(); },
     filtrarProyectos(s) { sistemaProyectos = s; refrescar(); },
+
+    async activarAvisos() {
+      if (!window.Recordatorios) return;
+      const r = await Recordatorios.pedirPermiso();
+      if (!r.ok) { toast(r.motivo, 'err'); refrescar(); return; }
+      toast(r.push ? 'Listo: también llegan con la app cerrada' : 'Listo: llegan con la app abierta', 'ok');
+      Recordatorios.arrancar();
+      refrescar();
+    },
+    probarAviso() {
+      if (!window.Recordatorios) return;
+      if (Recordatorios.estadoPermiso() !== 'granted') { toast('Primero activá las notificaciones', 'err'); return; }
+      const opts = { body: 'Si ves esto, los recordatorios funcionan en este aparato.', icon: 'favicon.png', badge: 'favicon.png', tag: 'tnr-prueba' };
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(reg => reg.showNotification('TNR · Prueba', opts))
+          .catch(() => { try { new Notification('TNR · Prueba', opts); } catch (_) {} });
+      } else { try { new Notification('TNR · Prueba', opts); } catch (_) {} }
+      toast('Aviso de prueba enviado', 'ok');
+    },
     rango(k) { rangoProd = k; refrescar(); },
 
     completar(id) {
@@ -716,11 +824,15 @@
         e.preventDefault();
         const d = leer('soFormRutina'); d.dias = leerDias();
         if (!d.dias.length) { toast('Elegí al menos un día', 'err'); return; }
-        DB.actualizarRutina(id, d); S().generarTareas(); closeModal(); toast('Rutina guardada', 'ok'); refrescar();
+        DB.actualizarRutina(id, d);
+        S().sincronizarRutina(id);   // el cambio se ve hoy, no mañana
+        S().generarTareas();
+        closeModal(); toast('Rutina guardada', 'ok'); refrescar();
       };
     },
     toggleRutina(id, activa) {
       DB.actualizarRutina(id, { activa: !!activa });
+      S().sincronizarRutina(id);   // al pausarla, se retiran las de hoy sin empezar
       if (activa) S().generarTareas();
       toast(activa ? 'Rutina activada' : 'Rutina pausada', 'ok');
       refrescar();
@@ -777,6 +889,7 @@
     if (vista === 'proyectos') return renderProyectos();
     if (vista === 'productividad') return renderProductividad();
     if (vista === 'rutinas') return renderRutinas();
+    if (vista === 'avisos') return renderAvisos();
     return renderHoy();
   }
 

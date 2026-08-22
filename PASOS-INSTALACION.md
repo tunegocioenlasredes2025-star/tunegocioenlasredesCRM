@@ -1,4 +1,4 @@
-# Poner en marcha el Sistema Operativo — 3 pasos, 10 minutos
+# Poner en marcha el Sistema Operativo — 4 pasos
 
 Hacé los pasos **en este orden**. Cada uno se hace una sola vez.
 
@@ -62,7 +62,38 @@ mismo archivo tiene abajo el rollback para volver atrás en 10 segundos.
 
 ---
 
-## Después de los 3 pasos
+## Paso 4 — Recordatorios en el celular *(opcional)*
+
+Esto es lo que hace que suene el aviso **con la app cerrada**, a la hora que
+elija cada uno desde el CRM (menú → **Recordatorios**).
+
+Hoy ya llega un aviso todos los días a las 9 con el mismo texto para los dos.
+Este paso lo reemplaza por avisos personales: “tenés 10 tareas hoy”, “te faltan
+4 de 10”, “marcá lo que hiciste”, más los recordatorios de tareas puntuales.
+
+1. Supabase → **SQL Editor** → **New query** → pegar todo `push-setup.sql` →
+   **Run**. Antes de correrlo, reemplazá `<ANON_KEY>` por la clave anon del
+   proyecto (es la misma que está en `config.js`, no es secreta).
+2. Supabase → **Edge Functions** → abrir la función **notify** → reemplazar todo
+   el código por el de `supabase/functions/notify/index.ts` → **Deploy**.
+3. Probar sin esperar: abrí en el navegador
+   `https://oqhzonwrcldwtdfurhzj.functions.supabase.co/notify?debug=1`.
+   Te dice la hora argentina que ve el servidor y qué avisos mandaría. No manda
+   nada.
+4. En el celular: abrir el CRM → menú → **Recordatorios** → **Activar en este
+   dispositivo** → **Probar ahora**. Hay que hacerlo en cada aparato.
+
+> Para que el aviso llegue de verdad con la app cerrada (sobre todo en iPhone),
+> el CRM tiene que estar **instalado como aplicación**: en el navegador del
+> celular, menú → “Agregar a pantalla de inicio”.
+
+Si no hacés este paso, los recordatorios igual funcionan mientras la app está
+abierta o en segundo plano. Lo que falta sin el paso 4 es el aviso con la app
+cerrada del todo.
+
+---
+
+## Qué pasa la primera vez que se abre
 
 La primera vez que alguien abra el CRM, el sistema carga solo:
 

@@ -66,6 +66,7 @@ drop policy if exists "tnr_all_eventos"    on eventos;
 drop policy if exists "tnr_all_metas"      on metas;
 drop policy if exists "tnr_all_proyectos"  on proyectos;
 drop policy if exists "tnr_all_rutinas"    on rutinas;
+drop policy if exists "tnr_all_ajustes"    on ajustes;
 
 create policy "tnr_auth_prospectos" on prospectos for all
   to authenticated using (true) with check (true);
@@ -82,6 +83,13 @@ create policy "tnr_auth_proyectos"  on proyectos  for all
   to authenticated using (true) with check (true);
 create policy "tnr_auth_rutinas"    on rutinas    for all
   to authenticated using (true) with check (true);
+create policy "tnr_auth_ajustes"   on ajustes    for all
+  to authenticated using (true) with check (true);
+
+-- OJO con push_subs y notif_log: NO se cierran. El servidor las usa con la
+-- service_role key (que salta las políticas), pero el navegador tiene que
+-- poder registrar el aparato al activar las notificaciones. Guardan un
+-- endpoint de push, no datos de clientes.
 
 -- ---------- Verificación ----------
 -- Tiene que devolver `authenticated` en la columna roles para cada fila.

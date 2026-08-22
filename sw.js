@@ -7,7 +7,7 @@ const CACHE = 'tnr-cache-v29';
 const ASSETS = [
   './', './index.html',
   './styles.css?v=29', './icons.js?v=29', './config.js?v=29', './auth.js?v=29',
-  './data.js?v=29', './sistema.js?v=29', './parser.js?v=29',
+  './data.js?v=29', './sistema.js?v=29', './recordatorios.js?v=29', './parser.js?v=29',
   './so-vista.js?v=29', './app.js?v=29',
   './logo.png', './logo.svg', './favicon.png', './apple-touch-icon.png', './manifest.json',
 ];

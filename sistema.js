@@ -90,6 +90,7 @@
             proyectoId: rutina.proyectoId || '',
             rutinaId: rutina.id,
             fecha: f, turno: rutina.turno || '',
+            recordarHora: rutina.recordarHora || '',
             prioridad: rutina.prioridad || 'Media',
             objetivo: +rutina.objetivo || 0,
             unidad: rutina.unidad || '',
@@ -104,6 +105,40 @@
       subirEnTandas(creadas);
     }
     return creadas.length;
+  }
+
+  /* Si se edita una rutina ("ahora son 20 mails, no 15"), el cambio tiene que
+     verse HOY, no mañana. Se actualizan las instancias de hoy en adelante que
+     todavía no están hechas. El pasado no se toca nunca: es el historial de
+     cumplimiento y reescribirlo sería mentirse solo. */
+  function sincronizarRutina(rutinaId) {
+    const rutina = DB.getRutina(rutinaId);
+    if (!rutina) return 0;
+    const h = hoy();
+    const tocadas = DB.getTareas().filter(t => t.rutinaId === rutinaId && t.fecha >= h && !esHecha(t));
+    tocadas.forEach(t => DB.actualizarTarea(t.id, {
+      titulo: rutina.titulo,
+      observaciones: rutina.observaciones || '',
+      sistema: rutina.sistema,
+      proyectoId: rutina.proyectoId || '',
+      turno: rutina.turno || '',
+      recordarHora: rutina.recordarHora || '',
+      prioridad: rutina.prioridad || 'Media',
+      objetivo: +rutina.objetivo || 0,
+      unidad: rutina.unidad || '',
+    }));
+    // Si dejó de tocar hoy (se cambiaron los días) o cambió de persona, las
+    // instancias que sobran se van. Sólo las que nadie empezó.
+    const validas = new Set();
+    if (rutina.activa) {
+      for (let f = h; f <= sumarDias(h, 14); f = sumarDias(f, 1)) {
+        if (tocaEseDia(rutina, f)) personasDe(rutina).forEach(p => validas.add(idInstancia(rutinaId, f, p)));
+      }
+    }
+    DB.getTareas()
+      .filter(t => t.rutinaId === rutinaId && t.fecha >= h && !esHecha(t) && !(+t.avance) && !validas.has(t.id))
+      .forEach(t => DB.eliminarTarea(t.id));
+    return tocadas.length;
   }
 
   // Escrituras masivas de a 5 con respiro, como el resto del CRM: Supabase
@@ -365,7 +400,7 @@
 
   window.Sistema = {
     ymd, hoy, fromYmd, sumarDias, diaSemana, lunesDe, rango, enRango,
-    generarTareas, arrancar, cargarPlanInicial, subirEnTandas,
+    generarTareas, sincronizarRutina, arrancar, cargarPlanInicial, subirEnTandas,
     estadoDe, esHecha, esDe, tareasDe, agendaDe, resumen, porSistema, contadores, racha,
     personasDe, tocaEseDia, HORIZONTE_DIAS,
   };

@@ -127,7 +127,7 @@
   function render() {
     if (searchTerm) return renderSearch();
     // Las pantallas del Sistema Operativo viven en so-vista.js.
-    const SO_VIEWS = ['hoy', 'tareas', 'proyectos', 'productividad', 'rutinas'];
+    const SO_VIEWS = ['hoy', 'tareas', 'proyectos', 'productividad', 'rutinas', 'avisos'];
     if (SO_VIEWS.includes(current)) {
       if (window.SOVista) window.SOVista.render(view, current);
       else view.innerHTML = '<div class="empty"><h3>No cargó el módulo</h3><p>Recargá la página.</p></div>';
@@ -1842,7 +1842,9 @@
       // si se generara antes, se duplicarían tareas que ya existen allá.
       try { if (window.Sistema) Sistema.arrancar(); } catch (e) { console.error('Sistema', e); }
       searchTerm ? renderSearch() : render(); // refresco con datos de la nube
-      notificarResumen(false); // recordatorio al abrir (si ya dio permiso)
+      // Recordatorios con horario propio (ver recordatorios.js). Reemplaza al
+      // aviso único que salía al abrir la app.
+      if (window.Recordatorios) Recordatorios.arrancar();
     }).catch((e) => { console.error(e); setCloudStatus(false); });
 
     // Si el celular quedó abierto de un día para el otro, al volver a la app
