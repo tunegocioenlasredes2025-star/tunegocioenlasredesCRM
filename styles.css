@@ -25,6 +25,14 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* "Oculto" tiene que ganar SIEMPRE.
+   El navegador oculta los [hidden] con una regla débil, y cualquier regla
+   nuestra con más peso (#app { display:flex }, .login-screen { display:grid })
+   le ganaba sin querer. Consecuencia: la pantalla azul del login seguía
+   ocupando el alto entero después de entrar, y había que scrollear para
+   llegar al CRM. Esta línea lo cierra de raíz para todo el sitio. */
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   font-family: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -941,3 +949,178 @@ tbody tr:hover .row-actions { opacity: 1; }
 @media (min-width: 620px) {
   .so-horas { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ---- Bienvenida (entre la contraseña y el CRM) ---- */
+.splash {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  padding: 24px;
+  background: radial-gradient(900px 500px at 50% 32%, #123a68, var(--bg) 72%);
+  transition: opacity .4s ease;
+}
+.splash.salir { opacity: 0; pointer-events: none; }
+
+.splash-box { display: flex; flex-direction: column; align-items: center; text-align: center; max-width: 320px; }
+
+.splash-logo {
+  width: 96px; height: 96px; object-fit: contain;
+  filter: brightness(0) invert(1);          /* el logo es azul marino: sobre fondo oscuro va en blanco */
+  animation: splash-logo .9s cubic-bezier(.22,1,.36,1) both;
+}
+.splash-txt { margin-top: 20px; display: flex; flex-direction: column; gap: 4px; }
+.splash-txt strong {
+  font-size: 19px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15;
+  animation: splash-sube .6s cubic-bezier(.22,1,.36,1) .32s both;
+}
+.splash-txt span {
+  font-size: 12.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--accent);
+  animation: splash-sube .6s cubic-bezier(.22,1,.36,1) .46s both;
+}
+.splash-linea {
+  width: 132px; height: 2px; margin-top: 22px; border-radius: 2px;
+  background: rgba(255,255,255,.12); overflow: hidden;
+  animation: splash-sube .5s ease .6s both;
+}
+.splash-linea i { display: block; height: 100%; width: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--cyan));
+  transform-origin: left; animation: splash-barra 1.25s cubic-bezier(.4,0,.2,1) .66s both; }
+.splash-hola {
+  margin-top: 16px; font-size: 12.5px; color: var(--text-dim);
+  animation: splash-sube .5s ease .8s both;
+}
+
+@keyframes splash-logo {
+  from { opacity: 0; transform: scale(.72) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes splash-sube {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes splash-barra { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* Si el teléfono pide menos movimiento, se muestra quieta y se va antes. */
+.splash-box.quieto .splash-logo,
+.splash-box.quieto .splash-txt strong,
+.splash-box.quieto .splash-txt span,
+.splash-box.quieto .splash-linea,
+.splash-box.quieto .splash-linea i,
+.splash-box.quieto .splash-hola { animation: none; opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo, .splash-txt strong, .splash-txt span,
+  .splash-linea, .splash-linea i, .splash-hola { animation: none !important; opacity: 1; transform: none; }
+}
+
+@media (max-width: 380px) {
+  .splash-logo { width: 78px; height: 78px; }
+  .splash-txt strong { font-size: 17px; }
+}
+
+/* ============================================================
+   MOBILE — que la primera tarea se vea sin scrollear
+   ------------------------------------------------------------
+   Medido en un teléfono de 375x812: antes había que bajar 655px
+   para ver la primera tarea, y cada tarjeta medía 204px porque el
+   contador le robaba el ancho al título y todo se partía en tres
+   renglones. Acá se arregla eso, no es maquillaje.
+   ============================================================ */
+@media (max-width: 680px) {
+
+  /* --- Barra de arriba: más baja, el buscador manda --- */
+  .topbar { padding: 9px 14px; gap: 8px; }
+  #globalSearch { padding: 9px 12px 9px 34px; font-size: 15px; }
+  .view { padding: 14px 14px 0; }
+
+  /* --- Encabezado: título y selector de persona en la misma fila --- */
+  .so-head { margin-bottom: 12px; align-items: center; gap: 8px; }
+  .so-head h1 { font-size: 21px; }
+  .so-head .sub { font-size: 12px; }
+  .so-switch button { padding: 7px 11px; font-size: 12.5px; min-height: 34px; }
+
+  /* --- El número grande: una sola fila, sin partirse --- */
+  .so-hero { padding: 13px 14px; gap: 12px; flex-wrap: nowrap; margin-bottom: 14px; }
+  .so-hero-main { flex: none; }
+  .so-hero-num { font-size: 30px; }
+  .so-hero-num span { font-size: 16px; }
+  .so-hero-lbl { font-size: 11.5px; margin-top: 3px; }
+  .so-hero-side { min-width: 0; }
+  .so-hero-pct { font-size: 18px; margin-bottom: 5px; }
+  .so-hero-sub { font-size: 11px; margin-top: 5px; }
+
+  /* --- Contadores del día: una tira que se desliza, no una lista larga.
+         Antes ocupaba 280px de alto; ahora entra en 70. --- */
+  .so-panel { margin-bottom: 14px; padding: 13px 14px; }
+  .so-counters {
+    display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+    margin: 0 -14px; padding: 0 14px 2px; scrollbar-width: none;
+  }
+  .so-fold > .so-counters { margin: 0; padding: 0 14px 14px; }
+  .so-fold > summary { padding: 12px 14px; }
+  .so-counters::-webkit-scrollbar { display: none; }
+  .so-counters .so-counter {
+    flex: 0 0 auto; min-width: 118px; scroll-snap-align: start;
+    background: var(--bg-2); border-radius: var(--r-sm); padding: 9px 11px;
+  }
+  .so-counter-top { margin-bottom: 6px; font-size: 11.5px; }
+  /* En Productividad sí queremos verlos todos juntos, no deslizándose. */
+  .so-counters-mini { flex-wrap: wrap; overflow: visible; margin: 14px 0 0; padding: 0; }
+  .so-counters-mini .so-counter { flex: 1 1 calc(50% - 5px); min-width: 0; }
+
+  /* --- LA TARJETA DE TAREA ---
+     El contador baja a su propio renglón, de ancho completo. El título
+     recupera el ancho de la pantalla (deja de partirse en tres) y los
+     botones ± pasan a ser de 44px, que es el tamaño de un dedo. --- */
+  .so-task { flex-wrap: wrap; row-gap: 10px; padding: 12px; }
+  .so-task-body { flex: 1 1 0; }
+  .so-task-title { font-size: 15px; }
+  /* La nota se muestra en una línea; el detalle completo está al abrirla. */
+  .so-task-note {
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+    overflow: hidden; margin-top: 3px;
+  }
+  .so-count {
+    flex: 1 0 100%; justify-content: space-between; gap: 8px;
+    background: var(--bg-2); border-radius: var(--r-sm); padding: 4px;
+  }
+  .so-count-btn { width: 44px; height: 40px; background: var(--panel); border-color: var(--border-2); }
+  .so-count-num { flex: 1; min-width: 0; flex-direction: row; align-items: baseline; justify-content: center; gap: 5px; }
+  .so-count-num strong { font-size: 18px; }
+  .so-count-num span { font-size: 12px; }
+
+  /* --- Bloques --- */
+  .so-block { margin-bottom: 16px; }
+  .so-block h2 { margin-bottom: 8px; }
+  .so-tasks { gap: 7px; }
+
+  /* --- Proyectos y productividad --- */
+  .so-project { padding: 12px; }
+  .so-person-kpis { gap: 6px; }
+  .so-person-kpis > div { padding: 9px 4px; }
+  .so-person-kpis strong { font-size: 17px; }
+}
+
+/* Pantallas muy angostas (iPhone SE y similares) */
+@media (max-width: 360px) {
+  .so-hero-num { font-size: 26px; }
+  .so-head h1 { font-size: 19px; }
+  .so-switch button { padding: 7px 9px; font-size: 12px; }
+}
+
+/* ---- Panel plegable (Actividad de hoy) ----
+   <details> nativo: sin JavaScript, y el navegador se encarga de la
+   accesibilidad. En el celular arranca cerrado para que las tareas
+   queden arriba de todo; en pantalla grande se rinde abierto. */
+.so-fold { padding: 0; overflow: hidden; }
+.so-fold > summary {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 14px; cursor: pointer; list-style: none;
+  font-size: 13px; font-weight: 700; color: var(--text-dim);
+}
+.so-fold > summary::-webkit-details-marker { display: none; }
+.so-fold-t { display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.so-fold > summary strong { font-variant-numeric: tabular-nums; font-size: 14px; }
+.so-fold-x { display: inline-flex; color: var(--text-faint); transition: transform .2s; }
+.so-fold[open] .so-fold-x { transform: rotate(90deg); }
+.so-fold > .so-counters { padding: 0 14px 14px; }

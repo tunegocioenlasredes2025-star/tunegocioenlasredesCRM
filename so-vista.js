@@ -154,17 +154,27 @@
         </div>
       </section>
 
-      ${conts.length ? `
-      <section class="panel so-panel">
-        <div class="panel-title">${icon('bar-chart', 16)} Actividad de hoy</div>
-        <div class="so-counters">
-          ${conts.map(c => `
-            <div class="so-counter">
-              <div class="so-counter-top"><span>${esc(c.corto || c.unidad)}</span><strong style="color:${colorPct(pct(c.hecho, c.objetivo))}">${c.hecho} / ${c.objetivo}</strong></div>
-              ${barra(pct(c.hecho, c.objetivo))}
-            </div>`).join('')}
-        </div>
-      </section>` : ''}
+      ${conts.length ? (() => {
+        // En el celular arranca plegado: lo primero que tiene que verse son las
+        // tareas, no el resumen. En pantalla grande sobra lugar, así que va abierto.
+        const totalHecho = conts.reduce((a, c) => a + c.hecho, 0);
+        const totalMeta = conts.reduce((a, c) => a + c.objetivo, 0);
+        const abierto = window.innerWidth > 680 ? ' open' : '';
+        return `<details class="panel so-panel so-fold"${abierto}>
+          <summary>
+            <span class="so-fold-t">${icon('bar-chart', 16)} Actividad de hoy</span>
+            <strong style="color:${colorPct(pct(totalHecho, totalMeta))}">${totalHecho} / ${totalMeta}</strong>
+            <span class="so-fold-x">${icon('chevron-right', 15)}</span>
+          </summary>
+          <div class="so-counters">
+            ${conts.map(c => `
+              <div class="so-counter">
+                <div class="so-counter-top"><span>${esc(c.corto || c.unidad)}</span><strong style="color:${colorPct(pct(c.hecho, c.objetivo))}">${c.hecho} / ${c.objetivo}</strong></div>
+                ${barra(pct(c.hecho, c.objetivo))}
+              </div>`).join('')}
+          </div>
+        </details>`;
+      })() : ''}
 
       ${vencidas.length ? `
       <section class="so-block so-block-alert">

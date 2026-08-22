@@ -91,6 +91,38 @@
     return 'No se pudo entrar. ' + ((e && e.message) || '');
   }
 
+  /* ---------- Bienvenida ----------
+     El segundo y medio entre poner la contraseña y ver el CRM. No es adorno:
+     tapa el armado de la pantalla, que en un celular flojo se ve como un
+     parpadeo. `alListo` se llama enseguida (la app se arma detrás), y la
+     animación se corre sola cuando termina.
+     Si el teléfono pide menos movimiento, se muestra fija y dura menos. */
+  function bienvenida(perfil, alListo) {
+    const cont = document.getElementById('splash');
+    if (!cont) { alListo(); return; }
+    const quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    cont.innerHTML = `
+      <div class="splash-box${quieto ? ' quieto' : ''}">
+        <img class="splash-logo" src="logo.png" alt="" onerror="this.onerror=null;this.src='logo.svg'" />
+        <div class="splash-txt">
+          <strong>Tu Negocio En Las Redes</strong>
+          <span>Sistema Operativo</span>
+        </div>
+        <div class="splash-linea"><i></i></div>
+        ${perfil && perfil.nombre ? `<p class="splash-hola">Hola, ${String(perfil.nombre).split(' ')[0]}</p>` : ''}
+      </div>`;
+    cont.hidden = false;
+
+    alListo();  // el CRM se arma detrás de la cortina
+
+    const duracion = quieto ? 900 : 2000;
+    setTimeout(() => {
+      cont.classList.add('salir');
+      setTimeout(() => { cont.hidden = true; cont.classList.remove('salir'); cont.innerHTML = ''; }, 420);
+    }, duracion);
+  }
+
   /* ---------- Pantalla de login ---------- */
   function mostrarLogin(alEntrar) {
     const cont = document.getElementById('login');
@@ -132,8 +164,13 @@
       btn.disabled = true; btn.textContent = 'Entrando…';
       try {
         const p = await entrar(document.getElementById('loginEmail').value, document.getElementById('loginPass').value);
-        cont.hidden = true; app.hidden = false; cont.innerHTML = '';
-        if (typeof alEntrar === 'function') alEntrar(p);
+        cont.hidden = true; cont.innerHTML = '';
+        // La app se arma DETRÁS de la bienvenida: cuando la animación se corre,
+        // el CRM ya está listo. Nada de pantalla en blanco a mitad de camino.
+        bienvenida(p, () => {
+          app.hidden = false;
+          if (typeof alEntrar === 'function') alEntrar(p);
+        });
       } catch (e) {
         err.textContent = mensajeError(e); err.hidden = false;
         btn.disabled = false; btn.textContent = 'Entrar';
@@ -144,7 +181,7 @@
   }
 
   window.Auth = {
-    init, entrar, salir, mostrarLogin, mensajeError,
+    init, entrar, salir, mostrarLogin, mensajeError, bienvenida,
     get client() { return client || crearCliente(); },
     get sesion() { return sesion; },
     get perfil() { return perfil; },
