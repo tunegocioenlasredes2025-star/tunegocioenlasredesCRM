@@ -3,12 +3,12 @@
    - Cachea el shell para que la app abra offline.
    - Recibe notificaciones push (cuando se configure el enviador).
    ============================================================ */
-const CACHE = 'tnr-cache-v33';
+const CACHE = 'tnr-cache-v34';
 const ASSETS = [
   './', './index.html',
-  './styles.css?v=33', './icons.js?v=33', './config.js?v=33', './auth.js?v=33',
-  './data.js?v=33', './sistema.js?v=33', './recordatorios.js?v=33', './parser.js?v=33',
-  './so-vista.js?v=33', './app.js?v=33',
+  './styles.css?v=34', './icons.js?v=34', './config.js?v=34', './auth.js?v=34',
+  './data.js?v=34', './sistema.js?v=34', './recordatorios.js?v=34', './parser.js?v=34',
+  './so-vista.js?v=34', './app.js?v=34',
   './logo.png', './logo.svg', './favicon.png', './apple-touch-icon.png', './manifest.json',
 ];
 
@@ -42,7 +42,11 @@ self.addEventListener('push', (e) => {
   try { if (e.data) d = Object.assign(d, e.data.json()); } catch (_) {}
   e.waitUntil(self.registration.showNotification(d.title, {
     body: d.body, icon: 'favicon.png', badge: 'favicon.png',
-    data: { url: d.url || './' }, vibrate: [80, 40, 80], tag: 'tnr-push',
+    // La etiqueta la decide quien manda el aviso. Es lo que hace que si el
+    // mismo recordatorio llega por los dos caminos (el navegador con la app
+    // abierta y el servidor con la app cerrada), el celular muestre UNO solo
+    // en vez de dos: mismo tag = se reemplaza, no se apila.
+    data: { url: d.url || './' }, vibrate: [80, 40, 80], tag: d.tag || 'tnr-push',
   }));
 });
 

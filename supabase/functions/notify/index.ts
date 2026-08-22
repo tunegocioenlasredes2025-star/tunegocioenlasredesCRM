@@ -160,7 +160,9 @@ Deno.serve(async (req) => {
       const { error } = await sb.from('notif_log').insert({ id });
       if (error) { salteados++; continue; }
 
-      const payload = JSON.stringify({ title: av.titulo, body: av.cuerpo, url: './' });
+      // `tag` va con la MISMA clave que usa el navegador (fecha:usuario:evento).
+      // Si el aviso sale por los dos caminos, el celular muestra uno solo.
+      const payload = JSON.stringify({ title: av.titulo, body: av.cuerpo, url: './', tag: id });
       for (const row of subs) {
         try { await webpush.sendNotification(row.data, payload); enviados++; }
         catch (e: any) {
