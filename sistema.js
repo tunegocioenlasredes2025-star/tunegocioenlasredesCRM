@@ -173,28 +173,52 @@
     return t.responsable === respId || t.responsable === 'equipo';
   }
 
+  /* ---------- Privacidad ----------
+     Lo personal es de quien lo cargó. Santiago ve las tareas de TNR de Mateo,
+     pero no que a las 22 le toca skincare. El filtro se aplica en UNA sola
+     puerta (todas) para que no haya que acordarse en cada pantalla. */
+  function puedeVer(t) {
+    const s = DB.sistemaDe(t.sistema);
+    if (!s.privado) return true;
+    const yo = (window.Auth && Auth.usuarioId) || '';
+    return !yo || t.responsable === yo;
+  }
+  // Todas las tareas que esta persona tiene derecho a ver. Es la base de todo
+  // lo que sigue: nada en sistema.js lee DB.getTareas() directo.
+  function todas() { return DB.getTareas().filter(puedeVer); }
+
+  // ¿Esta tarea entra en el porcentaje de TNR? Lo personal no: si contara,
+  // un día con los perros atendidos subiría el cumplimiento comercial.
+  const esDeTNR = (t) => !DB.sistemaDe(t.sistema).fueraDeTNR;
+  function porAmbito(list, ambito) {
+    if (ambito === 'personal') return list.filter(t => !esDeTNR(t));
+    if (ambito === 'todo') return list;
+    return list.filter(esDeTNR);   // 'tnr' por defecto
+  }
+
   function tareasDe(opts) {
     opts = opts || {};
-    let list = DB.getTareas().filter(t => t.fecha ? enRango(t.fecha, opts.rango || rango('hoy')) : (opts.incluirSinFecha !== false && !opts.rango));
-    if (opts.rango) list = DB.getTareas().filter(t => enRango(t.fecha, opts.rango));
+    let list = todas().filter(t => enRango(t.fecha, opts.rango || rango('hoy')));
     if (opts.resp) list = list.filter(t => esDe(t, opts.resp));
     if (opts.sistema) list = list.filter(t => t.sistema === opts.sistema);
     if (opts.proyectoId) list = list.filter(t => t.proyectoId === opts.proyectoId);
+    if (opts.ambito) list = porAmbito(list, opts.ambito);
     return list;
   }
 
   // Todo lo que hay para hacer hoy: las de hoy + las que quedaron colgadas.
-  function agendaDe(respId, ref) {
+  function agendaDe(respId, ref, ambito) {
     const h = ref || hoy();
-    const todas = DB.getTareas().filter(t => esDe(t, respId));
-    const deHoy = todas.filter(t => t.fecha === h);
-    const vencidas = todas.filter(t => t.fecha && t.fecha < h && !esHecha(t));
-    const sinFecha = todas.filter(t => !t.fecha && !esHecha(t));
+    let mias = todas().filter(t => esDe(t, respId));
+    if (ambito) mias = porAmbito(mias, ambito);
+    const deHoy = mias.filter(t => t.fecha === h);
+    const vencidas = mias.filter(t => t.fecha && t.fecha < h && !esHecha(t));
+    const sinFecha = mias.filter(t => !t.fecha && !esHecha(t));
     return { deHoy, vencidas, sinFecha };
   }
 
-  function resumen(respId, r) {
-    const list = tareasDe({ resp: respId, rango: r });
+  function resumen(respId, r, ambito) {
+    const list = tareasDe({ resp: respId, rango: r, ambito: ambito || 'tnr' });
     const total = list.length;
     const hechas = list.filter(esHecha).length;
     const vencidas = list.filter(t => estadoDe(t) === 'Vencida').length;
@@ -205,8 +229,11 @@
     };
   }
 
-  function porSistema(respId, r) {
-    return DB.SISTEMAS.map(s => {
+  function porSistema(respId, r, ambito) {
+    let sistemas = DB.SISTEMAS;
+    if (ambito === 'personal') sistemas = sistemas.filter(s => s.fueraDeTNR);
+    else if (ambito !== 'todo') sistemas = sistemas.filter(s => !s.fueraDeTNR);
+    return sistemas.map(s => {
       const list = tareasDe({ resp: respId, rango: r, sistema: s.id });
       const hechas = list.filter(esHecha).length;
       return { ...s, total: list.length, hechas, pct: list.length ? Math.round(hechas / list.length * 100) : 0 };
@@ -215,9 +242,9 @@
 
   /* Contadores de volumen: no alcanza con "tarea hecha", queremos saber
      cuántos mails salieron. Agrupa por unidad (mails, mensajes, minutos…). */
-  function contadores(respId, r) {
+  function contadores(respId, r, ambito) {
     const acc = {};
-    tareasDe({ resp: respId, rango: r }).forEach(t => {
+    tareasDe({ resp: respId, rango: r, ambito: ambito || 'tnr' }).forEach(t => {
       if (!t.unidad || !(+t.objetivo)) return;
       const u = acc[t.unidad] || (acc[t.unidad] = { unidad: t.unidad, corto: DB.unidadCorta(t.unidad), hecho: 0, objetivo: 0, detalle: {} });
       u.hecho += +t.avance || 0;
@@ -235,16 +262,82 @@
     let n = 0;
     let f = hoy();
     // Si hoy todavía no terminó todo, la racha se cuenta desde ayer.
-    const hoyList = DB.getTareas().filter(t => t.fecha === f && esDe(t, respId));
+    const hoyList = tareasDe({ resp: respId, rango: { desde: f, hasta: f } });
     if (!hoyList.length || hoyList.some(t => !esHecha(t))) f = sumarDias(f, -1);
     for (let i = 0; i < 120; i++) {
-      const list = DB.getTareas().filter(t => t.fecha === f && esDe(t, respId));
+      const list = tareasDe({ resp: respId, rango: { desde: f, hasta: f } });
       if (list.length) {
         if (list.every(esHecha)) n++; else break;
       }
       f = sumarDias(f, -1);
     }
     return n;
+  }
+
+  /* ============================================================
+     3.b) LA AGENDA DEL DÍA
+     ------------------------------------------------------------
+     Los bloques no son tareas: son las franjas fijas de la semana (el
+     colegio, el entrenamiento, el club). No se marcan — uno va igual.
+     Están para dos cosas: saber qué toca ahora, y ver de un vistazo
+     dónde entra el trabajo en un día que ya viene lleno.
+     ============================================================ */
+  function ahoraHHMM() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  const aMin = (hhmm) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+    return m ? (+m[1]) * 60 + (+m[2]) : null;
+  };
+  const dur = (b) => Math.max(0, (aMin(b.hasta) ?? 0) - (aMin(b.desde) ?? 0));
+
+  // Los bloques de un día, ordenados por hora.
+  function bloquesDe(usuarioId, fecha) {
+    const d = diaSemana(fecha || hoy());
+    return (DB.getAgenda(usuarioId) || [])
+      .filter(b => Array.isArray(b.dias) && b.dias.includes(d))
+      .slice()
+      .sort((x, y) => (aMin(x.desde) ?? 0) - (aMin(y.desde) ?? 0));
+  }
+
+  // Qué está pasando ahora y qué sigue. Devuelve null si el día ya terminó.
+  function bloqueAhora(usuarioId) {
+    const list = bloquesDe(usuarioId, hoy());
+    const t = aMin(ahoraHHMM());
+    const actual = list.find(b => aMin(b.desde) <= t && t < aMin(b.hasta)) || null;
+    const siguiente = list.find(b => aMin(b.desde) > t) || null;
+    const faltan = actual ? aMin(actual.hasta) - t : (siguiente ? aMin(siguiente.desde) - t : null);
+    return { actual, siguiente, faltan, total: list.length };
+  }
+
+  // Cuántas horas por semana le dedica a cada cosa. Sirve para ver si el plan
+  // cierra antes de prometerlo: 17 horas de TNR por semana no son gratis.
+  function horasSemana(usuarioId) {
+    const acc = {};
+    (DB.getAgenda(usuarioId) || []).forEach(b => {
+      const min = dur(b) * (Array.isArray(b.dias) ? b.dias.length : 0);
+      acc[b.tipo] = (acc[b.tipo] || 0) + min;
+    });
+    return Object.entries(acc)
+      .map(([tipo, min]) => ({ tipo, horas: +(min / 60).toFixed(1), ...DB.tipoBloque(tipo) }))
+      .sort((a, b) => b.horas - a.horas);
+  }
+
+  // Choques: dos bloques del mismo día pisándose. Se avisa, no se corrige solo.
+  function choques(usuarioId) {
+    const out = [];
+    for (let d = 0; d < 7; d++) {
+      const list = (DB.getAgenda(usuarioId) || [])
+        .filter(b => (b.dias || []).includes(d))
+        .sort((x, y) => (aMin(x.desde) ?? 0) - (aMin(y.desde) ?? 0));
+      for (let i = 1; i < list.length; i++) {
+        if (aMin(list[i].desde) < aMin(list[i - 1].hasta)) {
+          out.push({ dia: d, a: list[i - 1], b: list[i] });
+        }
+      }
+    }
+    return out;
   }
 
   /* ============================================================
@@ -401,7 +494,8 @@
   window.Sistema = {
     ymd, hoy, fromYmd, sumarDias, diaSemana, lunesDe, rango, enRango,
     generarTareas, sincronizarRutina, arrancar, cargarPlanInicial, subirEnTandas,
-    estadoDe, esHecha, esDe, tareasDe, agendaDe, resumen, porSistema, contadores, racha,
+    estadoDe, esHecha, esDe, puedeVer, todas, porAmbito, tareasDe, agendaDe, resumen, porSistema, contadores, racha,
+    bloquesDe, bloqueAhora, horasSemana, choques, ahoraHHMM, aMin, dur,
     personasDe, tocaEseDia, HORIZONTE_DIAS,
   };
 })();

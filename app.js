@@ -127,7 +127,7 @@
   function render() {
     if (searchTerm) return renderSearch();
     // Las pantallas del Sistema Operativo viven en so-vista.js.
-    const SO_VIEWS = ['hoy', 'tareas', 'proyectos', 'productividad', 'rutinas', 'avisos'];
+    const SO_VIEWS = ['hoy', 'tareas', 'proyectos', 'productividad', 'rutinas', 'avisos', 'agenda'];
     if (SO_VIEWS.includes(current)) {
       if (window.SOVista) window.SOVista.render(view, current);
       else view.innerHTML = '<div class="empty"><h3>No cargó el módulo</h3><p>Recargá la página.</p></div>';

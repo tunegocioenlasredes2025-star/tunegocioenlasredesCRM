@@ -48,16 +48,29 @@
      Devuelve sólo los que ya pasaron de hora y todavía no se avisaron.
      Si el celular estuvo apagado a las 9, el aviso aparece igual cuando
      se abre la app — tarde, pero aparece. Salvo que ya sea otro día. */
+  // Cuánto tiempo después de la hora sigue teniendo sentido avisar. Si el
+  // celular estuvo apagado toda la tarde, a la noche no sirve que lleguen
+  // seis avisos juntos: el momento ya pasó.
+  const TOLERANCIA_MIN = 180;
+
   function pendientes(usuarioId, ahora) {
     const cfg = DB.getAjustes(usuarioId);
     if (!cfg.avisos) return [];
     const hoy = Sistema.hoy();
     const t = hhmm(ahora);
+    const min = (x) => Sistema.aMin(x);
+    // Ya pasó la hora, pero no hace tanto como para que el aviso sea inútil.
+    const enVentana = (hora) => {
+      const h = min(hora), n = min(t);
+      return h != null && n != null && h <= n && n - h <= TOLERANCIA_MIN;
+    };
     const out = [];
-    const agenda = Sistema.agendaDe(usuarioId, hoy);
-    const mias = agenda.deHoy;
-    const faltan = mias.filter(x => !Sistema.esHecha(x));
-    const hechas = mias.length - faltan.length;
+    // TNR y lo personal se cuentan por separado, igual que en la pantalla.
+    const tnr = Sistema.agendaDe(usuarioId, hoy, 'tnr').deHoy;
+    const pers = Sistema.agendaDe(usuarioId, hoy, 'personal').deHoy;
+    const faltanT = tnr.filter(x => !Sistema.esHecha(x));
+    const faltanP = pers.filter(x => !Sistema.esHecha(x));
+    const hechasT = tnr.length - faltanT.length;
 
     const push = (clave, titulo, cuerpo) => {
       const k = `${hoy}:${usuarioId}:${clave}`;
@@ -65,23 +78,25 @@
       out.push({ clave: k, titulo, cuerpo });
     };
 
-    if (cfg.manana && t >= cfg.manana && mias.length) {
-      const conts = Sistema.contadores(usuarioId, Sistema.rango('hoy'))
+    if (cfg.manana && enVentana(cfg.manana) && (tnr.length || pers.length)) {
+      const conts = Sistema.contadores(usuarioId, Sistema.rango('hoy'), 'tnr')
         .map(c => `${c.objetivo} ${c.corto || c.unidad}`).join(' · ');
-      push('manana', `Buen día. Tenés ${mias.length} tareas hoy`, conts || 'Abrí el CRM para ver el detalle');
+      const cuerpo = [conts, pers.length ? `+ ${pers.length} personales` : ''].filter(Boolean).join(' · ');
+      push('manana', `Buen día. Tenés ${tnr.length} de TNR hoy`, cuerpo || 'Abrí el CRM para ver el detalle');
     }
-    if (cfg.tarde && t >= cfg.tarde && faltan.length) {
-      push('tarde', `Te faltan ${faltan.length} de ${mias.length}`,
-        faltan.slice(0, 2).map(x => x.titulo).join(' · ') + (faltan.length > 2 ? ` y ${faltan.length - 2} más` : ''));
+    if (cfg.tarde && enVentana(cfg.tarde) && faltanT.length) {
+      push('tarde', `Te faltan ${faltanT.length} de ${tnr.length}`,
+        faltanT.slice(0, 2).map(x => x.titulo).join(' · ') + (faltanT.length > 2 ? ` y ${faltanT.length - 2} más` : ''));
     }
-    if (cfg.cierre && t >= cfg.cierre) {
-      if (faltan.length) push('cierre', `Cierre del día: ${hechas} de ${mias.length}`, 'Marcá lo que hiciste antes de que termine el día');
-      else if (mias.length) push('cierre', '¡Día cerrado!', `${mias.length} de ${mias.length}. Mañana arrancamos de nuevo.`);
+    if (cfg.cierre && enVentana(cfg.cierre)) {
+      const cola = faltanP.length ? ` · te quedan ${faltanP.length} personales` : '';
+      if (faltanT.length) push('cierre', `Cierre del día: ${hechasT} de ${tnr.length} de TNR`, 'Marcá lo que hiciste' + cola);
+      else if (tnr.length) push('cierre', '¡TNR cerrado!', `${tnr.length} de ${tnr.length}${cola || '. Mañana arrancamos de nuevo.'}`);
     }
     if (cfg.avisarTareas) {
       // Recordatorios propios de cada tarea (los de las rutinas se heredan de la rutina).
-      const conHora = agenda.deHoy.concat(agenda.vencidas)
-        .filter(x => x.recordarHora && !Sistema.esHecha(x) && x.recordarHora <= t);
+      const conHora = tnr.concat(pers)
+        .filter(x => x.recordarHora && !Sistema.esHecha(x) && enVentana(x.recordarHora));
       conHora.forEach(x => push('tk:' + x.id, x.titulo,
         (+x.objetivo ? `${x.avance || 0} de ${x.objetivo} ${DB.unidadCorta(x.unidad)}` : 'Te lo recordás para ahora')));
     }

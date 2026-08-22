@@ -10,18 +10,18 @@
   <!-- El icono de la pestaña. Antes apuntaba a logo.png, que mide 1080x1350 y
        tiene medio lienzo en blanco: en 16px se veía un puntito perdido.
        favicon.png es el mismo logo recortado al dibujo y cuadrado. -->
-  <link rel="icon" type="image/png" sizes="512x512" href="favicon.png?v=31" />
+  <link rel="icon" type="image/png" sizes="512x512" href="favicon.png?v=32" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0b2240" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TNR CRM" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=31" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=32" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=31" />
+  <link rel="stylesheet" href="styles.css?v=32" />
 </head>
 <body>
   <!-- Pantalla de login. Se muestra sola si no hay sesión (ver auth.js). -->
@@ -59,6 +59,7 @@
 
         <div class="nav-group">Configuración</div>
         <button class="nav-item" data-view="rutinas"><span class="nav-ic" data-ic="repeat"></span> Rutinas</button>
+        <button class="nav-item" data-view="agenda"><span class="nav-ic" data-ic="calendar"></span> Mi semana</button>
         <button class="nav-item" data-view="avisos"><span class="nav-ic" data-ic="bell"></span> Recordatorios</button>
         <button class="nav-item" data-view="calendario"><span class="nav-ic" data-ic="calendar"></span> Calendario</button>
         <button class="nav-item" data-view="notificaciones"><span class="nav-ic" data-ic="bell"></span> Notificaciones <span class="badge-count" id="notifBadge" hidden>0</span></button>
@@ -116,17 +117,17 @@
   <div class="toast" id="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="icons.js?v=31"></script>
-  <script src="config.js?v=31"></script>
-  <script src="auth.js?v=31"></script>
-  <script src="tel.js?v=31"></script>
-  <script src="data.js?v=31"></script>
-  <script src="sistema.js?v=31"></script>
-  <script src="recordatorios.js?v=31"></script>
-  <script src="campanas.js?v=31"></script>
-  <script src="parser.js?v=31"></script>
-  <script src="so-vista.js?v=31"></script>
-  <script src="app.js?v=31"></script>
-  <script src="campanas-vista.js?v=31"></script>
+  <script src="icons.js?v=32"></script>
+  <script src="config.js?v=32"></script>
+  <script src="auth.js?v=32"></script>
+  <script src="tel.js?v=32"></script>
+  <script src="data.js?v=32"></script>
+  <script src="sistema.js?v=32"></script>
+  <script src="recordatorios.js?v=32"></script>
+  <script src="campanas.js?v=32"></script>
+  <script src="parser.js?v=32"></script>
+  <script src="so-vista.js?v=32"></script>
+  <script src="app.js?v=32"></script>
+  <script src="campanas-vista.js?v=32"></script>
 </body>
 </html>

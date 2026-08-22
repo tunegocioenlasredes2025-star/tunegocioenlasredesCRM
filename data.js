@@ -90,6 +90,12 @@
       desc: 'Ejecutar lo que ya vendimos: clientes y entregas.' },
     { id: 'optimizacion', label: 'Optimización',  corto: 'Optimización', color: '#3ecf8e',
       desc: 'Mejorar la propia empresa: automatizaciones, casos, capacitación.' },
+    // La vida de uno. `privado` significa que sólo la ve su dueño, y `fueraDeTNR`
+    // que no entra en el porcentaje de la agencia: si diera lo mismo darle de
+    // comer al perro que mandar 15 mails, el número de cumplimiento comercial
+    // dejaría de decir nada.
+    { id: 'personal',     label: 'Personal',      corto: 'Personal', color: '#f472b6',
+      desc: 'Hábitos, entrenamiento y vida fuera del trabajo.', privado: true, fueraDeTNR: true },
   ];
   const sistemaDe = (id) => SISTEMAS.find(s => s.id === id) || { id: '', label: 'Sin sistema', corto: '—', color: '#8b94a8' };
 
@@ -130,6 +136,23 @@
     { id: 'semanal',  label: 'Una vez por semana', dias: [1] },
     { id: 'custom',   label: 'Días elegidos',   dias: [] },
   ];
+
+  /* ---------- Agenda semanal ----------
+     Un "bloque" NO es una tarea: es una franja fija del día (el colegio, el
+     entrenamiento, el club). No se marca ni se cumple — uno va igual. Sirve
+     para ver dónde entra el resto y para saber qué toca ahora.
+     Se guardan dentro de `ajustes` de cada persona: son configuración suya,
+     no hace falta una tabla nueva. */
+  const TIPOS_BLOQUE = [
+    { id: 'colegio',       label: 'Colegio',        color: '#5b8cff' },
+    { id: 'tnr',           label: 'TNR (trabajo)',  color: '#1C9FE2' },
+    { id: 'entrenamiento', label: 'Entrenamiento',  color: '#3ecf8e' },
+    { id: 'club',          label: 'Club / partido', color: '#7c5cff' },
+    { id: 'comida',        label: 'Comida',         color: '#f59e42' },
+    { id: 'personal',      label: 'Personal',       color: '#f472b6' },
+    { id: 'libre',         label: 'Libre',          color: '#8b94a8' },
+  ];
+  const tipoBloque = (id) => TIPOS_BLOQUE.find(t => t.id === id) || { id: '', label: 'Otro', color: '#8b94a8' };
 
   const ESTADOS_PROYECTO = ['Activo', 'En pausa', 'Terminado'];
   // Prioridad geográfica: A = pegado a la base (Coronel Quesada 1218, Ituzaingó),
@@ -450,14 +473,21 @@
   }
   // Deja registrado que ya se contactó al prospecto por ese canal y ajusta el estado
   // para que se vea de un vistazo por dónde se lo tocó. No pisa estados más avanzados.
+  // Ojo: acá van los ids TAL CUAL están en ESTADOS_LEAD. Antes se escribían
+  // las formas viejas ('Contactado por WhatsApp') y como no coinciden con el
+  // catálogo, estadoColor() no las encontraba y el prospecto quedaba con el
+  // chip gris hasta que corriera la migración.
   const ESTADO_POR_CANALES = {
-    'Mail': 'Contactado por Mail',
-    'WhatsApp': 'Contactado por WhatsApp',
-    'Instagram': 'Contactado por Instagram',
-    'Mail+WhatsApp': 'Contactado por Mail + WhatsApp',
+    'Mail': 'Contactado por mail',
+    'WhatsApp': 'Contactado por wsp',
+    'Instagram': 'Contactado por ig',
+    'Mail+WhatsApp': 'Contactado por mail+wsp',
   };
+  // Estados desde los que todavía se puede avanzar a "contactado". Incluye las
+  // formas viejas porque quedan prospectos sin migrar.
   const ESTADOS_PREVIOS = ['Prospecto', 'Contactado', 'Contactado por Mail', 'Contactado por WhatsApp',
-    'Contactado por Instagram', 'Contactado por Mail + WhatsApp', 'Recontactar'];
+    'Contactado por Instagram', 'Contactado por Mail + WhatsApp', 'Recontactar',
+    'Contactado por mail', 'Contactado por wsp', 'Contactado por ig', 'Contactado por mail+wsp'];
 
   // Pasa la base al catálogo nuevo: tipo de prospecto, estados y prioridad A/B/C.
   // Corre una sola vez sobre cada prospecto y sólo toca lo que hace falta.
@@ -860,8 +890,11 @@
       tarde: '15:00',        // "te falta esto"
       cierre: '20:00',       // "marcá lo que hiciste"
       avisarTareas: true,    // recordatorios de tareas con hora propia
+      agenda: [],            // bloques fijos de la semana (ver TIPOS_BLOQUE)
     };
   }
+  function getAgenda(id) { return getAjustes(id).agenda || []; }
+  function guardarAgenda(id, bloques) { return guardarAjustes(id, { agenda: bloques }); }
   function getAjustes(id) {
     const a = (load().ajustes || []).find(x => x.id === id);
     return Object.assign(ajustesBase(id), a || {});
@@ -1040,7 +1073,8 @@
     PRIORIDADES_TAREA, PRIO_TAREA_COLOR, UNIDADES, unidadCorta, TURNOS, DIAS_CORTOS, RECURRENCIAS, ESTADOS_PROYECTO,
     getProyectos, getProyecto, crearProyecto, actualizarProyecto, eliminarProyecto,
     getRutinas, getRutina, crearRutina, actualizarRutina, eliminarRutina,
-    getAjustes, guardarAjustes,
+    getAjustes, guardarAjustes, getAgenda, guardarAgenda,
+    TIPOS_BLOQUE, tipoBloque,
     cloudPush: (tabla, obj) => Cloud.push(tabla, obj),
     get tablasFaltantes() { return Cloud.enabled ? Cloud.faltantes.slice() : []; },
     guardarLocal: save,

@@ -100,32 +100,39 @@ Deno.serve(async (req) => {
     if (!cfg.avisos) return [];
 
     // Sus tareas de hoy. Las compartidas ('equipo') cuentan para los dos.
+    // TNR y lo personal se cuentan por separado: si se mezclaran, el numero
+    // comercial dejaria de significar algo.
     const mias = tareas.filter((x: any) =>
       x.fecha === t.fecha && (x.responsable === usuario || x.responsable === 'equipo'));
-    const faltan = mias.filter((x: any) => x.estado !== 'Finalizada');
-    const hechas = mias.length - faltan.length;
+    const tnr = mias.filter((x: any) => x.sistema !== 'personal');
+    const pers = mias.filter((x: any) => x.sistema === 'personal');
+    const faltan = tnr.filter((x: any) => x.estado !== 'Finalizada');
+    const faltanP = pers.filter((x: any) => x.estado !== 'Finalizada');
+    const hechas = tnr.length - faltan.length;
     const out: { clave: string; titulo: string; cuerpo: string }[] = [];
 
     if (mias.length && toca(cfg.manana, t.minutos)) {
       // Resumen de volumen: "15 mails · 20 contactos · 25 msj"
       const porUnidad: Record<string, number> = {};
-      for (const x of mias) if (x.unidad && +x.objetivo) porUnidad[x.unidad] = (porUnidad[x.unidad] || 0) + (+x.objetivo);
+      for (const x of tnr) if (x.unidad && +x.objetivo) porUnidad[x.unidad] = (porUnidad[x.unidad] || 0) + (+x.objetivo);
       const detalle = Object.entries(porUnidad).map(([u, n]) => `${n} ${u}`).join(' · ');
-      out.push({ clave: 'manana', titulo: `Buen día. Tenés ${mias.length} tareas hoy`, cuerpo: detalle || 'Abrí el CRM para ver el detalle' });
+      const cuerpo = [detalle, pers.length ? `+ ${pers.length} personales` : ''].filter(Boolean).join(' · ');
+      out.push({ clave: 'manana', titulo: `Buen día. Tenés ${tnr.length} de TNR hoy`, cuerpo: cuerpo || 'Abrí el CRM para ver el detalle' });
     }
     if (faltan.length && toca(cfg.tarde, t.minutos)) {
       out.push({
-        clave: 'tarde', titulo: `Te faltan ${faltan.length} de ${mias.length}`,
+        clave: 'tarde', titulo: `Te faltan ${faltan.length} de ${tnr.length}`,
         cuerpo: faltan.slice(0, 2).map((x: any) => x.titulo).join(' · ') + (faltan.length > 2 ? ` y ${faltan.length - 2} más` : ''),
       });
     }
     if (mias.length && toca(cfg.cierre, t.minutos)) {
+      const cola = faltanP.length ? ` · te quedan ${faltanP.length} personales` : '';
       out.push(faltan.length
-        ? { clave: 'cierre', titulo: `Cierre del día: ${hechas} de ${mias.length}`, cuerpo: 'Marcá lo que hiciste antes de que termine el día' }
-        : { clave: 'cierre', titulo: '¡Día cerrado!', cuerpo: `${mias.length} de ${mias.length}. Mañana arrancamos de nuevo.` });
+        ? { clave: 'cierre', titulo: `Cierre del día: ${hechas} de ${tnr.length} de TNR`, cuerpo: 'Marcá lo que hiciste' + cola }
+        : { clave: 'cierre', titulo: '¡TNR cerrado!', cuerpo: `${tnr.length} de ${tnr.length}${cola || '. Mañana arrancamos de nuevo.'}` });
     }
     if (cfg.avisarTareas) {
-      for (const x of faltan) {
+      for (const x of faltan.concat(faltanP)) {
         if (x.recordarHora && toca(x.recordarHora, t.minutos)) {
           out.push({
             clave: 'tk:' + x.id, titulo: x.titulo,

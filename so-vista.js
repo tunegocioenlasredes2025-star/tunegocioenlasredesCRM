@@ -119,16 +119,21 @@
   function renderHoy() {
     const persona = foco();
     const h = S().hoy();
-    const ag = S().agendaDe(persona, h);
-    const r = S().resumen(persona, S().rango('hoy'));
-    const conts = S().contadores(persona, S().rango('hoy'));
+    // TNR y lo personal se calculan por separado a propósito: si se mezclaran,
+    // un día con los perros atendidos subiría el cumplimiento comercial.
+    const ag = S().agendaDe(persona, h, 'tnr');
+    const agPers = S().agendaDe(persona, h, 'personal');
+    const r = S().resumen(persona, S().rango('hoy'), 'tnr');
+    const rPers = S().resumen(persona, S().rango('hoy'), 'personal');
+    const conts = S().contadores(persona, S().rango('hoy'), 'tnr');
     const manana = ordenar(ag.deHoy.filter(t => t.turno === 'Mañana'));
     const tarde = ordenar(ag.deHoy.filter(t => t.turno === 'Tarde'));
     const resto = ordenar(ag.deHoy.filter(t => !t.turno));
     const vencidas = ordenar(ag.vencidas);
     const sinFecha = ordenar(ag.sinFecha).slice(0, 6);
+    const personales = ordenar(agPers.deHoy.concat(agPers.vencidas));
 
-    const equipo = DB.RESPONSABLES.map(p => ({ p, r: S().resumen(p.id, S().rango('hoy')), racha: S().racha(p.id) }));
+    const equipo = DB.RESPONSABLES.map(p => ({ p, r: S().resumen(p.id, S().rango('hoy'), 'tnr'), racha: S().racha(p.id) }));
     const proyectos = DB.getProyectos().filter(p => p.estado === 'Activo');
 
     host.innerHTML = `
@@ -141,6 +146,7 @@
       </div>
 
       ${avisoTablas()}
+      ${franjaAhora(persona)}
 
       <section class="so-hero" style="--c:${colorPct(r.pct)}">
         <div class="so-hero-main">
@@ -198,6 +204,17 @@
         ${listaTareas(sinFecha, { mostrarResp: true })}
       </section>` : ''}
 
+      ${personales.length ? `
+      <section class="so-block">
+        <h2><span class="so-sys" style="--c:${DB.sistemaDe('personal').color}">Personal</span>
+          <span class="so-block-count">${rPers.hechas}/${rPers.total}</span></h2>
+        ${barra(rPers.pct, DB.sistemaDe('personal').color)}
+        <div style="height:10px"></div>
+        ${listaTareas(personales, { mostrarResp: false, mostrarFecha: true })}
+      </section>` : ''}
+
+      ${panelMiDia(persona)}
+
       <section class="panel so-panel">
         <div class="panel-title">${icon('users', 16)} El equipo hoy</div>
         <div class="so-team">
@@ -239,6 +256,69 @@
         Para arreglarlo: Supabase → SQL Editor → New query → pegar el archivo <strong>sistema-setup.sql</strong> → Run.
       </p>
     </div>`;
+  }
+
+  /* ---------- Franja "qué toca ahora" ----------
+     Una sola línea, arriba de todo. Es lo primero que uno mira cuando abre
+     el celular entre clase y clase: dónde estoy parado y cuánto falta. */
+  function franjaAhora(persona) {
+    if (persona === 'todos') return '';
+    const a = S().bloqueAhora(persona);
+    if (!a.total) return '';
+    const t = DB.tipoBloque((a.actual || a.siguiente || {}).tipo);
+    const falta = (m) => m == null ? '' : m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? (m % 60) + ' min' : ''}`.trim() : `${m} min`;
+    if (a.actual) {
+      return `<div class="so-ahora" style="--c:${t.color}">
+        <span class="so-ahora-tag">Ahora</span>
+        <strong>${esc(a.actual.titulo)}</strong>
+        <span class="so-ahora-x">${a.faltan != null ? 'faltan ' + falta(a.faltan) : ''}${a.siguiente ? ` · después ${esc(a.siguiente.titulo)}` : ''}</span>
+      </div>`;
+    }
+    if (a.siguiente) {
+      return `<div class="so-ahora" style="--c:${t.color}">
+        <span class="so-ahora-tag">Sigue</span>
+        <strong>${esc(a.siguiente.titulo)}</strong>
+        <span class="so-ahora-x">a las ${esc(a.siguiente.desde)}${a.faltan != null ? ' · en ' + falta(a.faltan) : ''}</span>
+      </div>`;
+    }
+    return `<div class="so-ahora" style="--c:var(--text-faint)">
+      <span class="so-ahora-tag">Listo</span><strong>Se terminó la agenda del día</strong>
+      <span class="so-ahora-x">lo que quede es tiempo tuyo</span></div>`;
+  }
+
+  /* ---------- La línea del día ----------
+     El mapa de la jornada. Va plegado en el celular: no es lo primero que
+     hay que ver, pero cuando hace falta ubicarse está a un toque. */
+  function panelMiDia(persona) {
+    if (persona === 'todos') return '';
+    const list = S().bloquesDe(persona, S().hoy());
+    if (!list.length) {
+      return `<div class="panel so-panel">
+        <div class="panel-title">${icon('calendar', 16)} Mi día</div>
+        <p style="margin:0 0 12px;font-size:13px;color:var(--text-dim)">Todavía no cargaste tu semana: a qué hora vas al colegio, cuándo entrenás, en qué franja trabajás para TNR.</p>
+        <button class="btn-primary" onclick="SO.ir('agenda')">${icon('calendar')} Armar mi semana</button>
+      </div>`;
+    }
+    const ahora = S().aMin(S().ahoraHHMM());
+    return `<details class="panel so-panel so-fold"${window.innerWidth > 680 ? ' open' : ''}>
+      <summary>
+        <span class="so-fold-t">${icon('calendar', 16)} Mi día</span>
+        <strong>${list.length} bloques</strong>
+        <span class="so-fold-x">${icon('chevron-right', 15)}</span>
+      </summary>
+      <div class="so-linea-dia">
+        ${list.map(b => {
+          const t = DB.tipoBloque(b.tipo);
+          const pasado = S().aMin(b.hasta) <= ahora;
+          const activo = S().aMin(b.desde) <= ahora && ahora < S().aMin(b.hasta);
+          return `<div class="so-tramo${pasado ? ' pasado' : ''}${activo ? ' activo' : ''}" style="--c:${t.color}">
+            <span class="so-tramo-h">${esc(b.desde)}<em>${esc(b.hasta)}</em></span>
+            <span class="so-tramo-b"><strong>${esc(b.titulo)}</strong>${b.nota ? `<em>${esc(b.nota)}</em>` : ''}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <button class="btn-ghost so-verall" onclick="SO.ir('agenda')">Editar mi semana ${icon('arrow-right', 13)}</button>
+    </details>`;
   }
 
   function bloque(titulo, ic, list, persona) {
@@ -395,10 +475,14 @@
      ============================================================ */
   function renderProductividad() {
     const r = S().rango(rangoProd);
+    // El porcentaje de TNR va aparte del personal: son dos cosas distintas y
+    // mezclarlas haría que el número comercial deje de significar nada.
     const personas = DB.RESPONSABLES.map(p => ({
-      ...p, res: S().resumen(p.id, r), sist: S().porSistema(p.id, r), cont: S().contadores(p.id, r), racha: S().racha(p.id),
+      ...p, res: S().resumen(p.id, r, 'tnr'), sist: S().porSistema(p.id, r, 'tnr'),
+      cont: S().contadores(p.id, r, 'tnr'), racha: S().racha(p.id),
+      pers: S().resumen(p.id, r, 'personal'),
     }));
-    const equipoRes = S().resumen('todos', r);
+    const equipoRes = S().resumen('todos', r, 'tnr');
     const emb = embudo(r);
 
     host.innerHTML = `
@@ -425,6 +509,12 @@
               <div><strong>${p.res.pendientes}</strong><span>pendientes</span></div>
               <div><strong class="${p.res.vencidas ? 'rojo' : ''}">${p.res.vencidas}</strong><span>vencidas</span></div>
             </div>
+            ${p.pers.total && p.id === yo() ? `
+            <div class="so-personal-mini" style="--c:${DB.sistemaDe('personal').color}">
+              <span>Personal</span>
+              ${barra(p.pers.pct, DB.sistemaDe('personal').color)}
+              <em>${p.pers.hechas}/${p.pers.total}</em>
+            </div>` : ''}
             <div class="so-sist">
               ${p.sist.filter(s => s.total).map(s => `
                 <div class="so-sist-row">
@@ -451,7 +541,7 @@
           <div><strong>${equipoRes.pct}%</strong><span>cumplimiento</span></div>
         </div>
         <div class="so-sist" style="margin-top:14px">
-          ${S().porSistema('todos', r).filter(s => s.total).map(s => `
+          ${S().porSistema('todos', r, 'tnr').filter(s => s.total).map(s => `
             <div class="so-sist-row">
               <span class="so-sys" style="--c:${s.color}">${esc(s.corto)}</span>
               ${barra(s.pct, s.color)}
@@ -477,7 +567,7 @@
   /* Embudo comercial. No inventa datos: cada escalón sale de algo que el CRM
      ya registra. Sirve para ver dónde se corta la cadena. */
   function embudo(r) {
-    const conts = S().contadores('todos', r);
+    const conts = S().contadores('todos', r, 'tnr');
     const mensajes = conts.filter(c => ['mensajes', 'mails', 'contactos'].includes(c.unidad)).reduce((a, c) => a + c.hecho, 0);
     const dentro = (iso) => iso && S().enRango(String(iso).slice(0, 10), r);
     const ps = DB.getProspectos();
@@ -635,6 +725,112 @@
   }
 
   /* ============================================================
+     VISTA · MI SEMANA (la agenda de bloques fijos)
+     ============================================================ */
+  function renderAgenda() {
+    const uid = yo();
+    const agenda = DB.getAgenda(uid);
+    const horas = S().horasSemana(uid);
+    const ch = S().choques(uid);
+    const hoyD = S().diaSemana(S().hoy());
+    const dias = [1, 2, 3, 4, 5, 6, 0];   // arranca en lunes, el domingo al final
+    const NOMBRES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+    host.innerHTML = `
+      <div class="so-head">
+        <div><h1>Mi semana</h1><div class="sub">Los horarios fijos: colegio, entrenamiento, club y el rato de TNR</div></div>
+        <div class="head-actions"><button class="btn-primary" onclick="SO.nuevoBloque()">${icon('plus')}<span class="btn-label"> Bloque</span></button></div>
+      </div>
+
+      <p class="so-note-top">Esto <strong>no son tareas</strong>: son las franjas del día, las que van sí o sí. No se marcan
+      ni cuentan para el cumplimiento — están para saber qué toca ahora y para ver dónde entra el trabajo en un día que ya
+      viene lleno. Sólo las ve ${esc(nombreDe(uid))}.</p>
+
+      ${horas.length ? `
+      <section class="panel so-panel">
+        <div class="panel-title">${icon('clock', 16)} Cuántas horas por semana</div>
+        <div class="so-horas-sem">
+          ${horas.map(x => `<div class="so-hora-item" style="--c:${x.color}">
+            <strong>${x.horas} h</strong><span>${esc(x.label)}</span></div>`).join('')}
+        </div>
+        <p class="so-note">Es la cuenta de lo que cargaste, no una promesa. Si el número de TNR no cierra con lo que
+        querés facturar, el problema está acá y no en las ganas.</p>
+      </section>` : ''}
+
+      ${ch.length ? `
+      <div class="panel so-panel" style="border-color:var(--yellow)">
+        <div class="panel-title" style="color:var(--yellow)">${icon('alert', 16)} Hay ${ch.length} horario${ch.length > 1 ? 's' : ''} pisado${ch.length > 1 ? 's' : ''}</div>
+        ${ch.map(c => `<div style="font-size:13px;margin-bottom:6px">${DB.DIAS_CORTOS[c.dia]}: <strong>${esc(c.a.titulo)}</strong>
+          (hasta ${esc(c.a.hasta)}) se pisa con <strong>${esc(c.b.titulo)}</strong> (desde ${esc(c.b.desde)})</div>`).join('')}
+      </div>` : ''}
+
+      ${dias.map(d => {
+        const list = agenda.filter(b => (b.dias || []).includes(d))
+          .sort((x, y) => (S().aMin(x.desde) || 0) - (S().aMin(y.desde) || 0));
+        const totalTnr = list.filter(b => b.tipo === 'tnr').reduce((a, b) => a + S().dur(b), 0);
+        const etiqueta = totalTnr ? (totalTnr / 60).toFixed(1).replace('.0', '') + ' h de TNR'
+          : list.length ? list.length + ' bloques' : '';
+        return `<section class="so-block">
+          <h2>${NOMBRES[d]}${d === hoyD ? ' <span class="so-hoy-tag">hoy</span>' : ''}
+            <span class="so-block-count">${etiqueta}</span></h2>
+          ${list.length ? `<div class="so-linea-dia">${list.map(b => {
+            const t = DB.tipoBloque(b.tipo);
+            return `<div class="so-tramo" style="--c:${t.color}" onclick="SO.editarBloque('${b.id}')">
+              <span class="so-tramo-h">${esc(b.desde)}<em>${esc(b.hasta)}</em></span>
+              <span class="so-tramo-b"><strong>${esc(b.titulo)}</strong>${b.nota ? `<em>${esc(b.nota)}</em>` : ''}</span>
+            </div>`;
+          }).join('')}</div>`
+            : `<div class="muted" style="font-size:12.5px;padding:6px 2px">Día libre.
+               <button class="btn-ghost" style="display:inline-flex;width:auto;padding:4px 10px;margin-left:6px"
+                 onclick="SO.nuevoBloque({dias:[${d}]})">Agregar algo</button></div>`}
+        </section>`;
+      }).join('')}
+    `;
+  }
+
+  function formBloque(b) {
+    b = b || {};
+    const dias = b.dias || [];
+    return `<form id="soFormBloque"><div class="form-grid">
+      <div class="field full"><label>¿Qué es?</label><input name="titulo" value="${esc(b.titulo || '')}" placeholder="Ej: Colegio · Entrenamiento · TNR" /></div>
+      <div class="field"><label>Tipo</label><select name="tipo">${DB.TIPOS_BLOQUE.map(t => `<option value="${t.id}" ${b.tipo === t.id ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></div>
+      <div class="field"><label>Desde</label><input type="time" name="desde" value="${esc(b.desde || '')}" required /></div>
+      <div class="field"><label>Hasta</label><input type="time" name="hasta" value="${esc(b.hasta || '')}" required /></div>
+      <div class="field full"><label>Días</label>
+        <div class="so-days">${DB.DIAS_CORTOS.map((d, i) => `
+          <label class="so-day"><input type="checkbox" data-dia="${i}" ${dias.includes(i) ? 'checked' : ''} /><span>${d}</span></label>`).join('')}</div>
+        <div class="so-days-quick">
+          <button type="button" onclick="SO.diasBloque('lunvie')">Lun a vie</button>
+          <button type="button" onclick="SO.diasBloque('lunsab')">Lun a sáb</button>
+          <button type="button" onclick="SO.diasBloque('finde')">Fin de semana</button>
+          <button type="button" onclick="SO.diasBloque('todos')">Todos</button>
+        </div>
+      </div>
+      <div class="field full"><label>Nota (opcional)</label><input name="nota" value="${esc(b.nota || '')}" placeholder="Ej: Argentino Castelar" /></div>
+    </div>
+    <div class="form-foot">
+      ${b.id ? `<button type="button" class="btn-ghost danger" onclick="SO.borrarBloque('${b.id}')">${icon('trash')} Eliminar</button>` : ''}
+      <button type="button" class="btn-secondary" onclick="TNRUI.closeModal()">Cancelar</button>
+      <button type="submit" class="btn-primary">${b.id ? 'Guardar' : 'Agregar'}</button>
+    </div></form>`;
+  }
+
+  function leerBloque() {
+    const d = leer('soFormBloque');
+    d.dias = [];
+    document.querySelectorAll('#soFormBloque [data-dia]').forEach(el => { if (el.checked) d.dias.push(+el.dataset.dia); });
+    return d;
+  }
+  // Un bloque tiene que tener nombre, empezar antes de terminar y ocurrir algún día.
+  function validarBloque(d) {
+    if (!d.titulo) return 'Ponele un nombre.';
+    if (!d.desde || !d.hasta) return 'Faltan las horas.';
+    if (S().aMin(d.hasta) <= S().aMin(d.desde)) return 'La hora de fin tiene que ser posterior a la de inicio.';
+    if (!d.dias.length) return 'Elegí al menos un día.';
+    return '';
+  }
+
+  /* ============================================================
      FORMULARIOS
      ============================================================ */
   function optsResp(sel, conAmbos) {
@@ -746,6 +942,48 @@
     verPersona(id) { quien = id; filtros.resp = id; refrescar(); },
     filtrar(k, v) { filtros[k] = v; if (k === 'resp') quien = v; refrescar(); },
     filtrarProyectos(s) { sistemaProyectos = s; refrescar(); },
+
+    nuevoBloque(prefill) {
+      openModal('Nuevo bloque', formBloque(Object.assign({ tipo: 'colegio', dias: [1, 2, 3, 4, 5] }, prefill || {})));
+      document.getElementById('soFormBloque').onsubmit = e => {
+        e.preventDefault();
+        const d = leerBloque();
+        const err = validarBloque(d);
+        if (err) { toast(err, 'err'); return; }
+        const uid = yo();
+        const agenda = DB.getAgenda(uid).slice();
+        agenda.push(Object.assign({ id: 'BL-' + Math.random().toString(36).slice(2, 9) }, d));
+        DB.guardarAgenda(uid, agenda);
+        closeModal(); toast('Bloque agregado', 'ok'); refrescar();
+      };
+    },
+    editarBloque(id) {
+      const uid = yo();
+      const b = DB.getAgenda(uid).find(x => x.id === id);
+      if (!b) return;
+      openModal('Editar bloque', formBloque(b));
+      document.getElementById('soFormBloque').onsubmit = e => {
+        e.preventDefault();
+        const d = leerBloque();
+        const err = validarBloque(d);
+        if (err) { toast(err, 'err'); return; }
+        DB.guardarAgenda(uid, DB.getAgenda(uid).map(x => x.id === id ? Object.assign({}, x, d) : x));
+        closeModal(); toast('Guardado', 'ok'); refrescar();
+      };
+    },
+    borrarBloque(id) {
+      closeModal();
+      const uid = yo();
+      confirmDialog('Eliminar bloque', '¿Sacarlo de tu semana?', 'Eliminar', () => {
+        DB.guardarAgenda(uid, DB.getAgenda(uid).filter(x => x.id !== id));
+        refrescar();
+      }, true);
+    },
+    diasBloque(k) {
+      const mapa = { lunvie: [1, 2, 3, 4, 5], lunsab: [1, 2, 3, 4, 5, 6], finde: [0, 6], todos: [0, 1, 2, 3, 4, 5, 6] };
+      const sel = mapa[k] || [];
+      document.querySelectorAll('#soFormBloque [data-dia]').forEach(el => { el.checked = sel.includes(+el.dataset.dia); });
+    },
 
     async activarAvisos() {
       if (!window.Recordatorios) return;
@@ -900,6 +1138,7 @@
     if (vista === 'productividad') return renderProductividad();
     if (vista === 'rutinas') return renderRutinas();
     if (vista === 'avisos') return renderAvisos();
+    if (vista === 'agenda') return renderAgenda();
     return renderHoy();
   }
 
