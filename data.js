@@ -122,7 +122,9 @@
     { id: 'contactos', label: 'Contactos',    corto: 'contactos' },
     { id: 'llamadas',  label: 'Llamadas',     corto: 'llamadas' },
     { id: 'minutos',   label: 'Minutos',      corto: 'min' },
+    { id: 'horas',     label: 'Horas',        corto: 'h' },
     { id: 'piezas',    label: 'Piezas de contenido', corto: 'piezas' },
+    { id: 'vasos',     label: 'Vasos de agua', corto: 'vasos' },
   ];
   const unidadCorta = (id) => (UNIDADES.find(u => u.id === id) || {}).corto || '';
 
