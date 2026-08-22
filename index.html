@@ -2,24 +2,29 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>TNR · Sistema Operativo</title>
-  <link rel="icon" href="logo.png" />
-  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <!-- El icono de la pestaña. Antes apuntaba a logo.png, que mide 1080x1350 y
+       tiene medio lienzo en blanco: en 16px se veía un puntito perdido.
+       favicon.png es el mismo logo recortado al dibujo y cuadrado. -->
+  <link rel="icon" type="image/png" sizes="512x512" href="favicon.png?v=29" />
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0b2240" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TNR CRM" />
-  <link rel="apple-touch-icon" href="logo.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=29" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=27" />
+  <link rel="stylesheet" href="styles.css?v=29" />
 </head>
 <body>
-  <div id="app">
+  <!-- Pantalla de login. Se muestra sola si no hay sesión (ver auth.js). -->
+  <div id="login" class="login-screen" hidden></div>
+
+  <div id="app" hidden>
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="brand">
@@ -29,18 +34,37 @@
           <span>En Las Redes</span>
         </div>
       </div>
+
       <nav class="nav">
-        <button class="nav-item active" data-view="dashboard"><span class="nav-ic" data-ic="dashboard"></span> Dashboard</button>
-        <button class="nav-item" data-view="prospectos"><span class="nav-ic" data-ic="target"></span> Prospectos</button>
-        <button class="nav-item" data-view="buscar"><span class="nav-ic" data-ic="map-pin"></span> Buscar Negocios</button>
-        <button class="nav-item" data-view="clientes"><span class="nav-ic" data-ic="users"></span> Clientes</button>
-        <button class="nav-item" data-view="campanas"><span class="nav-ic" data-ic="send"></span> Campañas</button>
-        <button class="nav-item" data-view="calendario"><span class="nav-ic" data-ic="calendar"></span> Calendario</button>
+        <div class="nav-group">Día a día</div>
+        <button class="nav-item active" data-view="hoy"><span class="nav-ic" data-ic="sun"></span> Hoy</button>
         <button class="nav-item" data-view="tareas"><span class="nav-ic" data-ic="check-square"></span> Tareas</button>
-        <button class="nav-item" data-view="productividad"><span class="nav-ic" data-ic="clock"></span> Productividad</button>
+        <button class="nav-item" data-view="proyectos"><span class="nav-ic" data-ic="folder"></span> Proyectos</button>
+
+        <div class="nav-group">Comercial</div>
+        <button class="nav-item" data-view="prospectos"><span class="nav-ic" data-ic="target"></span> Prospección</button>
+        <button class="nav-item" data-view="campanas"><span class="nav-ic" data-ic="send"></span> Campañas</button>
+        <button class="nav-item" data-view="clientes"><span class="nav-ic" data-ic="users"></span> Clientes</button>
+
+        <div class="nav-group">Medición</div>
+        <button class="nav-item" data-view="productividad"><span class="nav-ic" data-ic="bar-chart"></span> Productividad</button>
+        <button class="nav-item" data-view="metas"><span class="nav-ic" data-ic="trophy"></span> Metas del mes</button>
+        <button class="nav-item" data-view="dashboard"><span class="nav-ic" data-ic="dashboard"></span> Panel de prospectos</button>
+
+        <div class="nav-group">Configuración</div>
+        <button class="nav-item" data-view="rutinas"><span class="nav-ic" data-ic="repeat"></span> Rutinas</button>
+        <button class="nav-item" data-view="calendario"><span class="nav-ic" data-ic="calendar"></span> Calendario</button>
         <button class="nav-item" data-view="notificaciones"><span class="nav-ic" data-ic="bell"></span> Notificaciones <span class="badge-count" id="notifBadge" hidden>0</span></button>
       </nav>
+
       <div class="cloud-status" id="cloudStatus"><span class="cs-dot"></span><span id="cloudStatusText">Conectando</span></div>
+
+      <div class="user-box" id="userBox" hidden>
+        <div class="user-ic" data-ic="user"></div>
+        <div class="user-txt"><strong id="userName">—</strong><span id="userMail">—</span></div>
+        <button class="icon-btn" id="btnSalir" title="Cerrar sesión" data-ic="log-out"></button>
+      </div>
+
       <div class="sidebar-foot">
         <button class="btn-ghost" id="btnExport" title="Descargar copia de seguridad"><span data-ic="download"></span> Backup</button>
         <button class="btn-ghost" id="btnImport" title="Restaurar copia"><span data-ic="upload"></span> Restaurar</button>
@@ -79,13 +103,16 @@
   <div class="toast" id="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="icons.js?v=27"></script>
-  <script src="config.js?v=27"></script>
-  <script src="tel.js?v=27"></script>
-  <script src="data.js?v=27"></script>
-  <script src="campanas.js?v=27"></script>
-  <script src="parser.js?v=27"></script>
-  <script src="app.js?v=27"></script>
-  <script src="campanas-vista.js?v=27"></script>
+  <script src="icons.js?v=29"></script>
+  <script src="config.js?v=29"></script>
+  <script src="auth.js?v=29"></script>
+  <script src="tel.js?v=29"></script>
+  <script src="data.js?v=29"></script>
+  <script src="sistema.js?v=29"></script>
+  <script src="campanas.js?v=29"></script>
+  <script src="parser.js?v=29"></script>
+  <script src="so-vista.js?v=29"></script>
+  <script src="app.js?v=29"></script>
+  <script src="campanas-vista.js?v=29"></script>
 </body>
 </html>

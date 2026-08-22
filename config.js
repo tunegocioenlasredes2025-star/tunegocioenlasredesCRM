@@ -13,6 +13,15 @@ window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXB
 // notificaciones funcionan solo al abrir la app.
 window.VAPID_PUBLIC = 'BK8v1DrJbm1K84NNCQie4W6zBH1SQH82Xl_m4P3zzg4-K1jh1y8OiHBQX0ws8AOA5xqF6fMUliRDEp7DD2f-0ck';
 
+// Quién es quién. Esto NO es un secreto: sólo dice qué mail corresponde a qué
+// persona del equipo, para que el CRM sepa de quién son las tareas. Las
+// contraseñas viven en Supabase (Authentication → Users), nunca acá.
+// Para sumar a alguien: se lo crea en Supabase y se agrega su mail a esta lista.
+window.TNR_USUARIOS = {
+  'mateo@tunegocioenlasredes.com.ar':    { id: 'mateo',    nombre: 'Mateo De Rosa' },
+  'santiago@tunegocioenlasredes.com.ar': { id: 'santiago', nombre: 'Santiago Stalla' },
+};
+
 // Google Maps / Places API key para "Buscar Negocios" con datos completos
 // (teléfono, web, rating, dirección). Si queda VACÍA, el buscador usa
 // OpenStreetMap (gratis, pero con menos datos). Ver GUIA-GOOGLE-MAPS.md.

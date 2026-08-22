@@ -64,6 +64,8 @@ drop policy if exists "tnr_all_clientes"   on clientes;
 drop policy if exists "tnr_all_tareas"     on tareas;
 drop policy if exists "tnr_all_eventos"    on eventos;
 drop policy if exists "tnr_all_metas"      on metas;
+drop policy if exists "tnr_all_proyectos"  on proyectos;
+drop policy if exists "tnr_all_rutinas"    on rutinas;
 
 create policy "tnr_auth_prospectos" on prospectos for all
   to authenticated using (true) with check (true);
@@ -74,6 +76,11 @@ create policy "tnr_auth_tareas"     on tareas     for all
 create policy "tnr_auth_eventos"    on eventos    for all
   to authenticated using (true) with check (true);
 create policy "tnr_auth_metas"      on metas      for all
+  to authenticated using (true) with check (true);
+-- Tablas del Sistema Operativo (ver sistema-setup.sql). Correr ese archivo primero.
+create policy "tnr_auth_proyectos"  on proyectos  for all
+  to authenticated using (true) with check (true);
+create policy "tnr_auth_rutinas"    on rutinas    for all
   to authenticated using (true) with check (true);
 
 -- ---------- Verificación ----------

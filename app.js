@@ -25,7 +25,10 @@
     if (isNaN(d)) return '—';
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   }
-  function todayStr() { return new Date().toISOString().slice(0, 10); }
+  // OJO: acá había un toISOString(), que da la fecha de Londres. Después de
+  // las 21:00 de Argentina el CRM ya creía que era el día siguiente y todo lo
+  // marcado de noche se contaba mañana. Ahora usa el reloj local (sistema.js).
+  function todayStr() { return window.Sistema ? Sistema.hoy() : (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })(); }
   function daysUntil(iso) {
     if (!iso) return null;
     const d = new Date(iso.length <= 10 ? iso + 'T00:00:00' : iso);
@@ -68,7 +71,11 @@
 
   /* Helpers que usa el módulo de Campañas (campanas-vista.js). Se exponen
      acá para no tener dos versiones del mismo toast y del mismo modal. */
-  window.TNRUI = { esc, toast, openModal, closeModal, confirmDialog, fmtDate, fmtDateTime, todayStr };
+  window.TNRUI = {
+    esc, toast, openModal, closeModal, confirmDialog, fmtDate, fmtDateTime, todayStr,
+    setView: (v) => setView(v),
+    render: () => render(),
+  };
 
   /* ---------- Chips ---------- */
   function estadoChip(estado) {
@@ -119,8 +126,22 @@
   }
   function render() {
     if (searchTerm) return renderSearch();
-    ({ dashboard: renderDashboard, prospectos: renderProspectos, buscar: renderBuscar, clientes: renderClientes, campanas: renderCampanas, calendario: renderCalendario, tareas: renderTareas, productividad: renderProductividad, notificaciones: renderNotificaciones }[current] || renderDashboard)();
+    // Las pantallas del Sistema Operativo viven en so-vista.js.
+    const SO_VIEWS = ['hoy', 'tareas', 'proyectos', 'productividad', 'rutinas'];
+    if (SO_VIEWS.includes(current)) {
+      if (window.SOVista) window.SOVista.render(view, current);
+      else view.innerHTML = '<div class="empty"><h3>No cargó el módulo</h3><p>Recargá la página.</p></div>';
+    } else {
+      ({ dashboard: renderDashboard, prospectos: renderProspectos, clientes: renderClientes, campanas: renderCampanas, calendario: renderCalendario, metas: renderMetas, notificaciones: renderNotificaciones }[current] || renderHoyFallback)();
+    }
     updateNotifBadge();
+  }
+
+  // Si alguien llega con una vista que ya no existe (un link viejo, la PWA
+  // guardada), lo mandamos a Hoy en vez de mostrarle una pantalla en blanco.
+  function renderHoyFallback() {
+    current = 'hoy';
+    if (window.SOVista) window.SOVista.render(view, 'hoy');
   }
 
   // Campañas vive en su propio archivo (campanas-vista.js) porque este ya
@@ -201,7 +222,8 @@
 
     view.innerHTML = `
       <div class="view-head">
-        <div><h1>Dashboard</h1><div class="sub">Resumen general de la operación · ${fmtDate(todayStr())}</div></div>
+        <div><h1>Panel de prospectos</h1><div class="sub">La foto grande del comercial · ${fmtDate(todayStr())}</div></div>
+        <div class="head-actions"><button class="btn-secondary" onclick="TNRUI.setView('hoy')">${icon('sun')}<span class="btn-label"> Ir a Hoy</span></button></div>
       </div>
 
       <div class="kpi-grid">
@@ -309,8 +331,10 @@
   function tareasPendientesMini() {
     const list = DB.getTareas().filter(t => t.estado !== 'Finalizada').slice(0, 5);
     if (!list.length) return `<div class="muted" style="font-size:13px">Sin tareas pendientes.</div>`;
-    return list.map(t => `<div class="flex" style="justify-content:space-between;padding:7px 0">
-      <span style="font-size:13px">${esc(t.titulo)}</span>${prioridadChip(t.prioridad)}</div>`).join('');
+    const col = p => DB.PRIO_TAREA_COLOR[p] || '#8b94a8';
+    return list.map(t => `<div class="flex" style="justify-content:space-between;padding:7px 0;cursor:pointer" onclick="TNR.abrirTarea('${t.id}')">
+      <span style="font-size:13px">${esc(t.titulo)}</span>
+      <span class="chip" style="background:${col(t.prioridad)}22;color:${col(t.prioridad)}">${esc(DB.responsableDe(t.responsable).corto)}</span></div>`).join('');
   }
 
   /* ============================================================
@@ -359,8 +383,9 @@
 
     view.innerHTML = `
       <div class="view-head">
-        <div><h1>Prospectos</h1><div class="sub">CRM de prospectos · ${all.length} en base</div></div>
+        <div><h1>Prospección</h1><div class="sub">${all.length} prospectos en base</div></div>
         <div class="head-actions">
+          <button class="btn-secondary" onclick="TNRUI.setView('dashboard')">${icon('bar-chart')} Panel</button>
           <button class="btn-secondary" onclick="TNR.importarBase()">${icon('upload')} Importar base</button>
           <button class="btn-secondary" onclick="TNR.nuevoProspectoChat()">${icon('sparkles')} Chat inteligente</button>
           <button class="btn-primary" onclick="TNR.nuevoProspecto()">${icon('plus')}Nuevo prospecto</button>
@@ -532,288 +557,6 @@
   function borrarProspecto(id) {
     const p = DB.getProspecto(id);
     confirmDialog('Eliminar prospecto', `¿Eliminar el prospecto "${p.empresa || p.nombre}"? Esta acción no se puede deshacer.`, 'Eliminar', () => { DB.eliminarProspecto(id); toast('Prospecto eliminado'); render(); }, true);
-  }
-
-  /* ============================================================
-     BUSCAR NEGOCIOS  (datos reales de OpenStreetMap / Overpass)
-     Encuentra negocios reales por rubro + zona (sin API key) y los
-     agrega como prospectos. Prioriza los que NO tienen sitio web.
-     ============================================================ */
-  // Selectores AFINADOS por rubro (evita mezclar categorías).
-  const RUBROS_OSM = {
-    'Gimnasios':               ['["leisure"="fitness_centre"]', '["sport"="fitness"]'],
-    'Restaurantes':            ['["amenity"="restaurant"]'],
-    'Bares y cafés':           ['["amenity"="cafe"]', '["amenity"="bar"]', '["amenity"="pub"]'],
-    'Institutos de inglés':    ['["amenity"="language_school"]'],
-    'Escuelas / academias':    ['["amenity"="school"]', '["amenity"="college"]', '["office"="educational_institution"]'],
-    'Pádel':                   ['["sport"="padel"]'],
-    'Canchas / clubes':        ['["leisure"="sports_centre"]', '["club"="sport"]'],
-    'Dentistas':               ['["amenity"="dentist"]', '["healthcare"="dentist"]'],
-    'Médicos / clínicas':      ['["amenity"="clinic"]', '["amenity"="doctors"]', '["healthcare"="clinic"]'],
-    'Peluquerías / barberías': ['["shop"="hairdresser"]'],
-    'Estética / belleza':      ['["shop"="beauty"]', '["shop"="cosmetics"]'],
-    'Hoteles':                 ['["tourism"="hotel"]', '["tourism"="guest_house"]', '["tourism"="motel"]'],
-    'Inmobiliarias':           ['["office"="estate_agent"]', '["shop"="estate_agent"]'],
-    'Veterinarias':            ['["amenity"="veterinary"]'],
-    'Farmacias':               ['["amenity"="pharmacy"]'],
-    'Ferreterías':             ['["shop"="hardware"]', '["shop"="doityourself"]'],
-    'Panaderías':              ['["shop"="bakery"]', '["shop"="pastry"]'],
-    'Indumentaria / ropa':     ['["shop"="clothes"]', '["shop"="boutique"]', '["shop"="shoes"]'],
-    'Estudios contables':      ['["office"="accountant"]', '["office"="tax_advisor"]'],
-    'Abogados':                ['["office"="lawyer"]'],
-    'Talleres / automotores':  ['["shop"="car_repair"]', '["shop"="tyres"]', '["shop"="motorcycle"]'],
-    'Concesionarias de autos': ['["shop"="car"]'],
-    'Supermercados / kioscos': ['["shop"="supermarket"]', '["shop"="convenience"]', '["shop"="kiosk"]'],
-    'Ópticas':                 ['["shop"="optician"]'],
-  };
-  const CIUDADES_QUICK = ['Morón', 'Castelar', 'Ituzaingó', 'Haedo', 'El Palomar', 'Ramos Mejía', 'San Antonio de Padua', 'Merlo', 'Villa Sarmiento', 'CABA'];
-
-  const bState = { rubro: 'Gimnasios', ciudad: 'Morón', loading: false, results: [], error: null, info: '', onlyNoWeb: false, soloContacto: false, fuente: 'osm' };
-
-  /* ---------- Google Places (se usa si hay window.GOOGLE_MAPS_KEY) ---------- */
-  function googleDisponible() { return !!(window.GOOGLE_MAPS_KEY && String(window.GOOGLE_MAPS_KEY).trim()); }
-
-  let _gmapsPromise = null;
-  function loadGoogleMaps() {
-    if (_gmapsPromise) return _gmapsPromise;
-    _gmapsPromise = new Promise((resolve, reject) => {
-      if (window.google && window.google.maps && window.google.maps.importLibrary) return resolve();
-      const s = document.createElement('script');
-      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(window.GOOGLE_MAPS_KEY)}&v=weekly&language=es&region=AR&loading=async`;
-      s.async = true;
-      s.onload = () => resolve();
-      s.onerror = () => { _gmapsPromise = null; reject(new Error('gmaps-load')); };
-      document.head.appendChild(s);
-    });
-    return _gmapsPromise;
-  }
-
-  async function buscarGoogle(rubro, ciudad) {
-    await loadGoogleMaps();
-    const { Place } = await google.maps.importLibrary('places');
-    const query = `${rubro.split('/')[0].trim()} en ${ciudad}, Buenos Aires, Argentina`;
-    const { places } = await Place.searchByText({
-      textQuery: query,
-      fields: ['displayName', 'formattedAddress', 'nationalPhoneNumber', 'websiteURI', 'rating', 'userRatingCount', 'googleMapsURI'],
-      maxResultCount: 20, language: 'es', region: 'AR',
-    });
-    return (places || []).map(pl => ({
-      name: String(pl.displayName || '').trim(), address: pl.formattedAddress || '',
-      phone: pl.nationalPhoneNumber || '', website: pl.websiteURI || '',
-      instagram: '', facebook: '', email: '',
-      rating: pl.rating || null, reviews: pl.userRatingCount || null, gmapsUri: pl.googleMapsURI || '',
-    })).filter(p => p.name);
-  }
-
-  // Un negocio sirve como prospecto solo si hay forma de contactarlo.
-  function esContactable(p) { return !!(p.phone || p.website || p.instagram || p.email); }
-  function completitud(p) { return (p.phone ? 1 : 0) + (p.instagram ? 1 : 0) + (p.website ? 1 : 0) + (p.email ? 1 : 0) + (p.facebook ? 0.5 : 0) + (p.address ? 0.5 : 0); }
-
-  function renderBuscar() {
-    const opts = Object.keys(RUBROS_OSM).map(r => `<option ${bState.rubro === r ? 'selected' : ''}>${esc(r)}</option>`).join('');
-    view.innerHTML = `
-      <div class="view-head">
-        <div><h1>Buscar Negocios</h1><div class="sub">${googleDisponible()
-          ? 'Datos completos vía Google Maps (teléfono, web, rating). Agregalos como prospectos.'
-          : `Negocios reales por rubro y zona. Tocá ${icon('map-pin')} para ver teléfono/web en Google Maps, y agregalos como prospectos.`}</div></div>
-      </div>
-      <div class="filters">
-        <select id="bRubro">${opts}</select>
-        <input id="bCiudad" list="bCiudades" value="${esc(bState.ciudad)}" placeholder="Ciudad / zona (ej: Morón)" style="min-width:180px" />
-        <datalist id="bCiudades">${CIUDADES_QUICK.map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
-        <button class="btn-primary" onclick="TNR.buscarRun()">${icon('search')} Buscar</button>
-        <label class="b-check"><input type="checkbox" id="bSoloContacto" ${bState.soloContacto ? 'checked' : ''}/> Solo con datos de contacto</label>
-        <label class="b-check"><input type="checkbox" id="bNoWeb" ${bState.onlyNoWeb ? 'checked' : ''}/> Sólo sin sitio web</label>
-      </div>
-      <div id="buscarResults"></div>`;
-    $('#bRubro').onchange = e => { bState.rubro = e.target.value; };
-    $('#bCiudad').oninput = e => { bState.ciudad = e.target.value; };
-    $('#bCiudad').onkeydown = e => { if (e.key === 'Enter') buscarRun(); };
-    $('#bSoloContacto').onchange = e => { bState.soloContacto = e.target.checked; drawBuscar(); };
-    $('#bNoWeb').onchange = e => { bState.onlyNoWeb = e.target.checked; drawBuscar(); };
-    drawBuscar();
-  }
-
-  // Ciudad -> bounding box (Nominatim)
-  async function geocodeCiudad(ciudad) {
-    const q = /caba|capital federal|ciudad de buenos aires/i.test(ciudad)
-      ? 'Ciudad Autónoma de Buenos Aires, Argentina' : `${ciudad}, Buenos Aires, Argentina`;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ar&q=${encodeURIComponent(q)}`;
-    const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    const j = await r.json();
-    if (!j || !j.length) return null;
-    const b = j[0].boundingbox; // [south, north, west, east]
-    return { south: +b[0], north: +b[1], west: +b[2], east: +b[3] };
-  }
-
-  async function overpass(selectors, bb) {
-    const box = `(${bb.south},${bb.west},${bb.north},${bb.east})`;
-    const query = `[out:json][timeout:25];(${selectors.map(s => `nwr${s}${box};`).join('')});out center tags 90;`;
-    // Varios servidores espejo: si uno está ocupado/lento, se prueba el siguiente.
-    const eps = [
-      'https://overpass-api.de/api/interpreter',
-      'https://overpass.kumi.systems/api/interpreter',
-      'https://overpass.private.coffee/api/interpreter',
-    ];
-    let busy = false, lastErr;
-    for (const ep of eps) {
-      try {
-        const ctrl = new AbortController();
-        const to = setTimeout(() => ctrl.abort(), 27000);
-        const r = await fetch(ep, { method: 'POST', body: 'data=' + encodeURIComponent(query), signal: ctrl.signal });
-        clearTimeout(to);
-        if (r.status === 429 || r.status === 504 || r.status === 503) { busy = true; continue; }
-        if (!r.ok) { lastErr = new Error('HTTP ' + r.status); continue; }
-        const j = await r.json();
-        return j.elements || [];
-      } catch (e) { lastErr = e; }
-    }
-    const err = new Error(busy ? 'busy' : 'net');
-    err.busy = busy;
-    throw err;
-  }
-
-  function osmToNegocio(el) {
-    const t = el.tags || {};
-    const name = (t.name || t.brand || t.operator || '').trim();
-    if (!name) return null;
-    const addr = [[t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' '), t['addr:city']].filter(Boolean).join(', ');
-    const ig = (t['contact:instagram'] || '').replace(/^.*instagram\.com\//, '').replace(/\/$/, '').replace(/^@/, '');
-    const fb = (t['contact:facebook'] || t.facebook || '').trim();
-    return {
-      name, address: addr.trim(),
-      phone: (t['contact:phone'] || t.phone || t['contact:mobile'] || '').trim(),
-      website: (t.website || t['contact:website'] || t.url || '').trim(),
-      instagram: ig, facebook: fb, email: (t['contact:email'] || t.email || '').trim(),
-    };
-  }
-
-  async function buscarRun() {
-    bState.loading = true; bState.error = null; bState.results = []; drawBuscar();
-    try {
-      let list;
-      if (googleDisponible()) {
-        bState.fuente = 'google';
-        list = await buscarGoogle(bState.rubro, bState.ciudad);
-      } else {
-        bState.fuente = 'osm';
-        const geo = await geocodeCiudad(bState.ciudad);
-        if (!geo) { bState.error = 'No encontré esa ciudad. Probá escribirla distinto (ej: "Morón").'; return; }
-        const els = await overpass(RUBROS_OSM[bState.rubro] || ['["shop"]'], geo);
-        list = els.map(osmToNegocio).filter(Boolean);
-      }
-      const seen = new Set();
-      list = list.filter(p => { const k = p.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
-      list.sort((a, b) => completitud(b) - completitud(a) || a.name.localeCompare(b.name));
-      bState.results = list;
-      const conCont = list.filter(esContactable).length;
-      bState.info = list.length
-        ? `${conCont} con datos de contacto · ${list.length} en total`
-        : `No se encontraron negocios de "${bState.rubro}" en ${bState.ciudad}. Probá otra zona o rubro.`;
-    } catch (e) {
-      bState.error = (googleDisponible() && /gmaps/.test(String(e && e.message)))
-        ? 'No se pudo cargar Google Maps. Revisá que la API key sea válida y que tengas habilitada "Places API (New)".'
-        : (e && e.busy
-          ? 'Los servidores de mapas están ocupados en este momento. Esperá unos segundos y volvé a tocar Buscar.'
-          : 'Tardó demasiado o falló la conexión. Reintentá en unos segundos (o probá una zona más chica).');
-    } finally {
-      bState.loading = false; drawBuscar();
-    }
-  }
-
-  function yaEnCRM(name) {
-    const n = name.toLowerCase();
-    return DB.getProspectos().some(p => (p.empresa || '').toLowerCase() === n) ||
-           DB.getClientes().some(c => (c.empresa || '').toLowerCase() === n);
-  }
-
-  function drawBuscar() {
-    const box = $('#buscarResults'); if (!box) return;
-    if (bState.loading) { box.innerHTML = `<div class="empty"><div class="e-ic">${icon('search', 40)}</div><h3>Buscando…</h3><p>Consultando negocios reales en ${esc(bState.ciudad)}.</p></div>`; return; }
-    if (bState.error) { box.innerHTML = `<div class="empty"><div class="e-ic">${icon('target', 40)}</div><h3>Ups</h3><p>${esc(bState.error)}</p></div>`; return; }
-    if (!bState.results.length && !bState.info) { box.innerHTML = emptyState('map-pin', 'Buscá tus próximos clientes', 'Elegí un rubro y una zona, y tocá Buscar. Traemos negocios reales de OpenStreetMap.', 'TNR.buscarRun()'); return; }
-    let list = bState.results.slice();
-    if (bState.soloContacto) list = list.filter(esContactable);
-    if (bState.onlyNoWeb) list = list.filter(p => !p.website);
-    if (bState.results.length && !list.length) {
-      box.innerHTML = `<div class="filters" style="margin-bottom:14px"><span class="result-count" style="margin-left:0">${esc(bState.info)}</span></div>
-        <div class="empty"><div class="e-ic">${icon('inbox', 40)}</div><h3>Ninguno con datos de contacto</h3>
-        <p>OpenStreetMap no tiene teléfono/web/Instagram cargado para ${esc(bState.rubro).toLowerCase()} en ${esc(bState.ciudad)}. Destildá <strong>"Solo con datos de contacto"</strong> para ver todos, o probá otra zona/rubro.</p></div>`;
-      return;
-    }
-    const pend = list.filter(p => !yaEnCRM(p.name)).length;
-    const gmapsAll = `https://www.google.com/maps/search/${encodeURIComponent(bState.rubro.split('/')[0].trim() + ' en ' + bState.ciudad + ', Buenos Aires')}`;
-    box.innerHTML = `
-      <div class="filters" style="margin-bottom:14px">
-        <span class="result-count" style="margin-left:0">${esc(bState.info)} · <span style="color:var(--accent)">vía ${bState.fuente === 'google' ? 'Google Maps' : 'OpenStreetMap'}</span>${bState.soloContacto ? ` · ${list.length} con contacto` : ''}${bState.onlyNoWeb ? ' · sin web' : ''}</span>
-        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-          <a class="btn-secondary gmaps-btn" style="padding:7px 12px" target="_blank" href="${gmapsAll}">${icon('map-pin')} Ver todo en Google Maps</a>
-          ${pend ? `<button class="btn-secondary" onclick="TNR.buscarAddAll()">${icon('plus')} Agregar todos (${pend})</button>` : ''}
-        </div>
-      </div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Negocio</th><th>Zona</th><th>Web</th><th>Contacto</th><th></th></tr></thead>
-        <tbody>${list.map(p => {
-          const en = yaEnCRM(p.name);
-          const wa = String(p.phone || '').replace(/\D/g, '');
-          const web = p.website ? (p.website.startsWith('http') ? p.website : 'https://' + p.website) : '';
-          const gmaps = p.gmapsUri || `https://www.google.com/maps/search/${encodeURIComponent(p.name + ' ' + (p.address || bState.ciudad))}`;
-          const igSearch = `https://www.google.com/search?q=${encodeURIComponent(p.name + ' ' + bState.ciudad + ' instagram')}`;
-          const ratingTxt = p.rating ? ` · ⭐ ${p.rating}${p.reviews ? ` (${p.reviews})` : ''}` : '';
-          const links = [
-            `<a class="icon-btn gmaps-btn" title="Ver en Google Maps (teléfono · web · horarios)" target="_blank" href="${gmaps}">${icon('map-pin')}</a>`,
-            p.instagram
-              ? `<a class="icon-btn" title="Instagram" target="_blank" href="https://instagram.com/${esc(p.instagram)}">${icon('instagram')}</a>`
-              : `<a class="icon-btn" title="Buscar Instagram" target="_blank" href="${igSearch}">${icon('instagram')}</a>`,
-            wa ? `<a class="icon-btn" title="WhatsApp" target="_blank" href="https://wa.me/${waNum(p.phone)}">${icon('whatsapp')}</a>` : '',
-            p.phone ? `<a class="icon-btn" title="Llamar" href="tel:${esc(p.phone)}">${icon('phone')}</a>` : '',
-            web ? `<a class="icon-btn" title="Sitio web" target="_blank" href="${esc(web)}">${icon('globe')}</a>` : '',
-          ].filter(Boolean).join('');
-          return `<tr>
-            <td data-label="Negocio"><div class="cell-strong">${esc(p.name)}</div>${(p.address || ratingTxt) ? `<div class="cell-dim">${esc(p.address || '')}${ratingTxt}</div>` : ''}</td>
-            <td data-label="Zona" class="cell-dim">${esc(bState.ciudad)}</td>
-            <td data-label="Web">${p.website ? '<span class="tag">Tiene web</span>' : `<span class="tag" style="background:#3ecf8e22;color:#3ecf8e;border-color:#3ecf8e44">Sin web</span>`}</td>
-            <td data-label="Contacto"><div class="row-actions">${links}</div></td>
-            <td data-label="">${en
-              ? `<span class="tag" style="background:#3ecf8e22;color:#3ecf8e;border-color:#3ecf8e44">${icon('check')} En el CRM</span>`
-              : `<button class="btn-primary bp-add" onclick="TNR.buscarAdd(${bState.results.indexOf(p)})">${icon('plus')} Agregar</button>`}</td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table></div>`;
-  }
-
-  function negocioToProspecto(p) {
-    const prov = /caba|capital federal|ciudad de buenos aires/i.test(bState.ciudad) ? 'CABA' : 'Buenos Aires';
-    return {
-      empresa: p.name, nombre: '', rubro: bState.rubro, ciudad: bState.ciudad, provincia: prov, pais: 'Argentina',
-      telefono: p.phone || '', whatsapp: p.phone || '', sitioWeb: p.website || '', instagram: p.instagram || '', facebook: p.facebook || '', email: p.email || '',
-      metodoContacto: p.phone ? 'WhatsApp' : '', estado: 'Prospecto',
-      observaciones: [
-        'Encontrado con Buscar Negocios (' + (bState.fuente === 'google' ? 'Google Maps' : 'OpenStreetMap') + ')',
-        p.address ? 'Dirección: ' + p.address : '',
-        p.rating ? `Rating: ${p.rating}★${p.reviews ? ' (' + p.reviews + ' reseñas)' : ''}` : '',
-      ].filter(Boolean).join(' · '),
-    };
-  }
-
-  function buscarAdd(i) {
-    const p = bState.results[i]; if (!p) return;
-    if (yaEnCRM(p.name)) { toast('Ya está en el CRM'); drawBuscar(); return; }
-    DB.crearProspecto(negocioToProspecto(p));
-    toast('Agregado como prospecto', 'ok');
-    drawBuscar();
-  }
-
-  function buscarAddAll() {
-    let list = bState.results.slice();
-    if (bState.soloContacto) list = list.filter(esContactable);
-    if (bState.onlyNoWeb) list = list.filter(p => !p.website);
-    const pend = list.filter(p => !yaEnCRM(p.name));
-    if (!pend.length) { toast('No hay negocios nuevos para agregar'); return; }
-    if (!confirm(`¿Agregar ${pend.length} negocios como prospectos?`)) return;
-    pend.forEach(p => DB.crearProspecto(negocioToProspecto(p)));
-    toast(`${pend.length} prospectos agregados`, 'ok');
-    drawBuscar();
   }
 
   /* ---------- Chat inteligente ---------- */
@@ -1504,56 +1247,11 @@
   }
 
   /* ============================================================
-     TAREAS
+     TAREAS — la pantalla vive en so-vista.js (window.SOVista).
+     Acá quedan sólo los atajos que usan otras vistas del CRM.
      ============================================================ */
-  let tareaFiltro = 'todas';
-  function renderTareas() {
-    let list = DB.getTareas();
-    if (tareaFiltro !== 'todas') list = list.filter(t => t.estado === tareaFiltro);
-    view.innerHTML = `
-      <div class="view-head">
-        <div><h1>Tareas</h1><div class="sub">${DB.getTareas().filter(t => t.estado !== 'Finalizada').length} pendientes</div></div>
-        <div class="head-actions"><button class="btn-primary" onclick="TNR.nuevaTarea()">${icon('plus')}Nueva tarea</button></div>
-      </div>
-      <div class="filters">
-        ${['todas', ...DB.ESTADOS_TAREA].map(f => `<button class="btn-ghost" style="flex:none;${tareaFiltro === f ? 'background:var(--panel-2);color:var(--text);border-color:var(--border-2)' : ''}" onclick="TNR.filtrarTareas('${f}')">${f === 'todas' ? 'Todas' : f}</button>`).join('')}
-      </div>
-      ${list.length ? `<div class="table-wrap"><table><thead><tr><th>Tarea</th><th>Responsable</th><th>Vence</th><th>Prioridad</th><th>Estado</th><th></th></tr></thead>
-        <tbody>${list.map(t => {
-          const d = daysUntil(t.fecha);
-          const venc = t.fecha ? (d < 0 && t.estado !== 'Finalizada' ? `<span class="tag" style="color:#ff5d6c">${fmtDate(t.fecha)}</span>` : fmtDate(t.fecha)) : '<span class="cell-dim">—</span>';
-          return `<tr onclick="TNR.editarTarea('${t.id}')">
-            <td data-label="Tarea"><div class="cell-strong">${esc(t.titulo)}</div>${t.observaciones ? `<div class="cell-dim">${esc(t.observaciones)}</div>` : ''}</td>
-            <td data-label="Responsable" class="cell-dim">${esc(t.responsable) || '—'}</td><td data-label="Vence">${venc}</td>
-            <td data-label="Prioridad">${prioridadChip(t.prioridad)}</td><td data-label="Estado">${tareaChip(t.estado)}</td>
-            <td data-label=""><div class="row-actions" onclick="event.stopPropagation()">
-              ${t.estado !== 'Finalizada' ? `<button class="icon-btn" title="Finalizar" onclick="TNR.finalizarTarea('${t.id}')">${icon('check')}</button>` : ''}
-              <button class="icon-btn danger" onclick="TNR.borrarTarea('${t.id}')">${icon('trash')}</button></div></td>
-          </tr>`;
-        }).join('')}</tbody></table></div>`
-        : emptyState('check-square', 'Sin tareas', 'Creá tareas para organizar seguimientos, entregas y cobros.', 'TNR.nuevaTarea()')}
-    `;
-  }
-  function formTarea(t) {
-    t = t || {};
-    return `<form id="formTarea"><div class="form-grid">
-      <div class="field full"><label>Título</label><input name="titulo" value="${esc(t.titulo || '')}" /></div>
-      <div class="field"><label>Responsable</label><input name="responsable" value="${esc(t.responsable || 'Mateo')}" /></div>
-      <div class="field"><label>Fecha</label><input type="date" name="fecha" value="${esc(t.fecha || '')}" /></div>
-      <div class="field"><label>Prioridad</label><select name="prioridad">${DB.PRIORIDADES.map(p => `<option ${t.prioridad === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
-      <div class="field"><label>Estado</label><select name="estado">${DB.ESTADOS_TAREA.map(e => `<option ${t.estado === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
-      <div class="field full"><label>Observaciones</label><textarea name="observaciones">${esc(t.observaciones || '')}</textarea></div>
-    </div><div class="form-foot"><button type="button" class="btn-secondary" onclick="TNR.cerrar()">Cancelar</button><button type="submit" class="btn-primary">${t.id ? 'Guardar' : 'Crear tarea'}</button></div></form>`;
-  }
-  function nuevaTarea() {
-    openModal('Nueva tarea', formTarea({ prioridad: 'Media', estado: 'Pendiente' }));
-    $('#formTarea').onsubmit = e => { e.preventDefault(); const d = readForm('formTarea'); if (!d.titulo) { toast('Poné un título', 'err'); return; } DB.crearTarea(d); closeModal(); toast('Tarea creada', 'ok'); render(); };
-  }
-  function editarTarea(id) {
-    const t = DB.getTareas().find(x => x.id === id);
-    openModal('Editar tarea', formTarea(t));
-    $('#formTarea').onsubmit = e => { e.preventDefault(); DB.actualizarTarea(id, readForm('formTarea')); closeModal(); toast('Tarea actualizada', 'ok'); render(); };
-  }
+  function nuevaTarea(prefill) { if (window.SO) SO.nuevaTarea(prefill); }
+  function editarTarea(id) { if (window.SO) SO.abrirTarea(id); }
   function finalizarTarea(id) { DB.actualizarTarea(id, { estado: 'Finalizada' }); toast('Tarea finalizada', 'ok'); render(); }
   function borrarTarea(id) { confirmDialog('Eliminar tarea', '¿Eliminar esta tarea?', 'Eliminar', () => { DB.eliminarTarea(id); render(); }, true); }
 
@@ -1831,18 +1529,18 @@
     if (timer.running) return;
     timer.startedAt = Date.now(); timer.running = true;
     if (!timer.handle) timer.handle = setInterval(timerTick, 1000);
-    if (current === 'productividad') renderProductividad();
+    if (current === 'metas') renderMetas();
   }
-  function timerPause() { if (!timer.running) return; timer.acc = timerElapsed(); timer.running = false; if (current === 'productividad') renderProductividad(); }
+  function timerPause() { if (!timer.running) return; timer.acc = timerElapsed(); timer.running = false; if (current === 'metas') renderMetas(); }
   function timerStop() {
     const total = timerElapsed();
     if (total >= 1) { DB.registrarTiempo({ categoria: timer.cat, segundos: Math.round(total) }); toast('Sesión guardada: ' + fmtDur(total), 'ok'); }
     timer.acc = 0; timer.running = false;
-    if (current === 'productividad') renderProductividad();
+    if (current === 'metas') renderMetas();
   }
-  function timerReset() { timer.acc = 0; timer.running = false; if (current === 'productividad') renderProductividad(); }
+  function timerReset() { timer.acc = 0; timer.running = false; if (current === 'metas') renderMetas(); }
 
-  function renderProductividad() {
+  function renderMetas() {
     const id = mesId();
     const meta = DB.getMeta(id) || {};
     const actual = metricasMes(id);
@@ -1882,7 +1580,7 @@
 
     view.innerHTML = `
       <div class="view-head">
-        <div><h1>Productividad</h1><div class="sub">Metas y tiempo · ${mesLabel(id)}</div></div>
+        <div><h1>Metas del mes</h1><div class="sub">Objetivos comerciales y cronómetro · ${mesLabel(id)}</div></div>
         <div class="head-actions"><button class="btn-primary" onclick="TNR.guardarMetas()">${icon('flag')}<span class="btn-label"> Guardar metas</span></button></div>
       </div>
 
@@ -1946,11 +1644,12 @@
 
   /* Bottom nav (mobile) — navegación con una mano; reutiliza .nav-item para el estado activo */
   (function buildBottomNav() {
+    // Lo que se toca todos los días, al alcance del pulgar. El resto, en "Más".
     const items = [
-      { v: 'dashboard', ic: 'dashboard', label: 'Inicio' },
-      { v: 'prospectos', ic: 'target', label: 'Prospectos' },
-      { v: 'buscar', ic: 'map-pin', label: 'Buscar' },
-      { v: 'clientes', ic: 'users', label: 'Clientes' },
+      { v: 'hoy', ic: 'sun', label: 'Hoy' },
+      { v: 'tareas', ic: 'check-square', label: 'Tareas' },
+      { v: 'proyectos', ic: 'folder', label: 'Proyectos' },
+      { v: 'prospectos', ic: 'target', label: 'Prospección' },
       { v: '__more', ic: 'menu', label: 'Más' },
     ];
     const nav = document.createElement('nav');
@@ -2018,7 +1717,6 @@
     nuevoProspecto, editarProspecto, borrarProspecto, abrirProspecto, nuevoProspectoChat, revisarParse, convertirCliente,
     importarBase,
     clearFiltros: () => { Object.keys(pFilters).forEach(k => pFilters[k] = ''); pPage = 1; renderProspectos(); },
-    buscarRun, buscarAdd, buscarAddAll,
     analizarProspecto, genMensaje, copiarMsg, marcarContacto, mensajeWhatsApp,
     nuevoCliente, editarCliente, borrarCliente, abrirCliente,
     quitarSrv: (cid, sid) => { DB.quitarServicioCliente(cid, sid); abrirCliente(cid, 'servicios'); },
@@ -2029,8 +1727,7 @@
     borrarFactura: (cid, fid) => confirmDialog('Eliminar facturación', '¿Seguro que deseas eliminar esta facturación?', 'Eliminar', () => { DB.eliminarFactura(cid, fid); toast('Facturación eliminada'); abrirCliente(cid, 'facturacion'); }, true),
     editarPago: (cid, pid) => formPago(cid, pid),
     borrarPago: (cid, pid) => confirmDialog('Eliminar pago', '¿Seguro que deseas eliminar este pago?', 'Eliminar', () => { DB.eliminarPago(cid, pid); toast('Pago eliminado'); abrirCliente(cid, 'facturacion'); }, true),
-    nuevaTarea, editarTarea, finalizarTarea, borrarTarea,
-    filtrarTareas: (f) => { tareaFiltro = f; renderTareas(); },
+    nuevaTarea, editarTarea, finalizarTarea, borrarTarea, abrirTarea: editarTarea,
     // Calendario
     calVista: (v) => { calView = v; renderCalendario(); },
     calHoy: () => { calCursor = new Date(); renderCalendario(); },
@@ -2047,7 +1744,7 @@
     guardarMetas: () => {
       const id = mesId(); const vals = {};
       DB.METRICAS_META.forEach(mt => { const el = $('#meta_' + mt.id); if (el) vals[mt.id] = +el.value || 0; });
-      DB.guardarMeta(id, vals); toast('Metas guardadas', 'ok'); renderProductividad();
+      DB.guardarMeta(id, vals); toast('Metas guardadas', 'ok'); renderMetas();
     },
     timer: (action) => { ({ start: timerStart, pause: timerPause, stop: timerStop, reset: timerReset }[action] || function () {})(); },
     setTimerCat: (c) => { timer.cat = c; },
@@ -2118,14 +1815,61 @@
     } else { try { new Notification(titulo, opts); } catch (_) {} }
   }
 
-  /* ---------- Init ---------- */
-  if (window.Icons) Icons.paintStatic(); // iconos estáticos del sidebar/topbar/modal
-  initPWA();
-  DB.onRemoteChange = () => { searchTerm ? renderSearch() : render(); };
-  setView('dashboard'); // render inmediato con datos locales/cacheados
-  DB.init().then((online) => {
-    setCloudStatus(online);
-    searchTerm ? renderSearch() : render(); // refresco con datos de la nube
-    notificarResumen(false); // recordatorio al abrir (si ya dio permiso)
-  }).catch((e) => { console.error(e); setCloudStatus(false); });
+  /* ---------- Quién está usando el CRM ---------- */
+  function pintarUsuario() {
+    const p = window.Auth && Auth.perfil;
+    const box = $('#userBox');
+    if (!box) return;
+    if (!p) { box.hidden = true; return; }
+    box.hidden = false;
+    $('#userName').textContent = p.nombre;
+    $('#userMail').textContent = p.email || '';
+    const salir = $('#btnSalir');
+    if (salir) salir.onclick = () => confirmDialog('Cerrar sesión', '¿Salir del sistema en este dispositivo?', 'Salir', () => Auth.salir());
+    if (window.Icons) Icons.paintStatic();
+  }
+
+  /* ---------- Arranque de la app (ya con sesión) ---------- */
+  function arrancarApp() {
+    if (window.Icons) Icons.paintStatic(); // iconos estáticos del sidebar/topbar/modal
+    initPWA();
+    pintarUsuario();
+    DB.onRemoteChange = () => { searchTerm ? renderSearch() : render(); };
+    setView('hoy'); // render inmediato con datos locales/cacheados
+    DB.init().then((online) => {
+      setCloudStatus(online);
+      // Recién ahora, con los datos de la nube abajo, se fabrica el día:
+      // si se generara antes, se duplicarían tareas que ya existen allá.
+      try { if (window.Sistema) Sistema.arrancar(); } catch (e) { console.error('Sistema', e); }
+      searchTerm ? renderSearch() : render(); // refresco con datos de la nube
+      notificarResumen(false); // recordatorio al abrir (si ya dio permiso)
+    }).catch((e) => { console.error(e); setCloudStatus(false); });
+
+    // Si el celular quedó abierto de un día para el otro, al volver a la app
+    // se rearma el día en vez de mostrar las tareas de ayer.
+    let ultimoDia = todayStr();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      const h = todayStr();
+      if (h === ultimoDia) return;
+      ultimoDia = h;
+      try { if (window.Sistema) Sistema.arrancar(); } catch (e) { console.error(e); }
+      render();
+    });
+  }
+
+  /* ---------- Init: primero la puerta, después la casa ---------- */
+  if (window.Auth) {
+    Auth.init().then(sesion => {
+      if (sesion) { document.getElementById('app').hidden = false; arrancarApp(); }
+      else Auth.mostrarLogin(() => arrancarApp());
+    }).catch(e => {
+      console.error('Auth', e);
+      document.getElementById('app').hidden = false;
+      arrancarApp();
+    });
+  } else {
+    document.getElementById('app').hidden = false;
+    arrancarApp();
+  }
 })();

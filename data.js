@@ -8,7 +8,7 @@
   'use strict';
 
   const KEY = 'tnr_crm_v1';
-  const TABLES = ['prospectos', 'clientes', 'tareas', 'eventos', 'metas']; // colecciones en la nube
+  const TABLES = ['prospectos', 'clientes', 'tareas', 'eventos', 'metas', 'proyectos', 'rutinas']; // colecciones en la nube
 
   /* ---------- Catálogos ---------- */
   // Sólo los canales que se trabajan desde ESTE CRM. Las llamadas en frío van al CRM de vendedores.
@@ -75,6 +75,63 @@
 
   const ESTADOS_CONTENIDO = ['Pendiente', 'En Diseño', 'En Revisión', 'Esperando Cliente', 'Aprobado', 'Programado', 'Publicado'];
   const ESTADOS_TAREA = ['Pendiente', 'En Curso', 'Finalizada'];
+
+  /* ============================================================
+     SISTEMA OPERATIVO — los tres sistemas de trabajo de TNR
+     ------------------------------------------------------------
+     Todo lo que se hace en TNR entra en uno de estos tres cajones.
+     Nada de listas mezcladas: cada tarea y cada proyecto declara a
+     cuál pertenece, y las pantallas filtran por acá.
+     ============================================================ */
+  const SISTEMAS = [
+    { id: 'prospeccion',  label: 'Prospección',  corto: 'Prospección', color: '#1C9FE2',
+      desc: 'Conseguir clientes nuevos. Es lo que hizo crecer agosto.' },
+    { id: 'gestion',      label: 'Gestión de servicios', corto: 'Gestión', color: '#7c5cff',
+      desc: 'Ejecutar lo que ya vendimos: clientes y entregas.' },
+    { id: 'optimizacion', label: 'Optimización',  corto: 'Optimización', color: '#3ecf8e',
+      desc: 'Mejorar la propia empresa: automatizaciones, casos, capacitación.' },
+  ];
+  const sistemaDe = (id) => SISTEMAS.find(s => s.id === id) || { id: '', label: 'Sin sistema', corto: '—', color: '#8b94a8' };
+
+  // Las personas del equipo. `equipo` = tarea compartida: la hace cualquiera de los dos.
+  const RESPONSABLES = [
+    { id: 'mateo',    nombre: 'Mateo De Rosa',   corto: 'Mateo' },
+    { id: 'santiago', nombre: 'Santiago Stalla', corto: 'Santiago' },
+  ];
+  const RESP_EQUIPO = { id: 'equipo', nombre: 'Los dos (compartida)', corto: 'Equipo' };
+  const responsableDe = (id) => RESPONSABLES.find(r => r.id === id) || (id === 'equipo' ? RESP_EQUIPO : { id: id || '', nombre: id || 'Sin asignar', corto: id || '—' });
+
+  // Prioridad de TAREAS. Ojo: PRIORIDADES (A/B/C) es otra cosa — es la
+  // prioridad geográfica de los prospectos. No mezclar.
+  const PRIORIDADES_TAREA = ['Alta', 'Media', 'Baja'];
+  const PRIO_TAREA_COLOR = { 'Alta': '#ff5d6c', 'Media': '#f5c451', 'Baja': '#8b94a8' };
+  // Tareas viejas: usaban el catálogo A/B/C por error. Se traducen al abrir.
+  const PRIO_TAREA_LEGACY = { 'A': 'Alta', 'B': 'Media', 'C': 'Baja', 'Urgente': 'Alta' };
+
+  // Unidades de las tareas que se cuentan (no basta con "hecha": queremos volumen).
+  const UNIDADES = [
+    { id: '',          label: 'Sin contador', corto: '' },
+    { id: 'mensajes',  label: 'Mensajes',     corto: 'msj' },
+    { id: 'mails',     label: 'Mails',        corto: 'mails' },
+    { id: 'contactos', label: 'Contactos',    corto: 'contactos' },
+    { id: 'llamadas',  label: 'Llamadas',     corto: 'llamadas' },
+    { id: 'minutos',   label: 'Minutos',      corto: 'min' },
+    { id: 'piezas',    label: 'Piezas de contenido', corto: 'piezas' },
+  ];
+  const unidadCorta = (id) => (UNIDADES.find(u => u.id === id) || {}).corto || '';
+
+  const TURNOS = ['', 'Mañana', 'Tarde'];
+  const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  // Atajos de recurrencia usados al crear rutinas.
+  const RECURRENCIAS = [
+    { id: 'lun-sab',  label: 'Lunes a sábado', dias: [1, 2, 3, 4, 5, 6] },
+    { id: 'lun-vie',  label: 'Lunes a viernes', dias: [1, 2, 3, 4, 5] },
+    { id: 'todos',    label: 'Todos los días',  dias: [0, 1, 2, 3, 4, 5, 6] },
+    { id: 'semanal',  label: 'Una vez por semana', dias: [1] },
+    { id: 'custom',   label: 'Días elegidos',   dias: [] },
+  ];
+
+  const ESTADOS_PROYECTO = ['Activo', 'En pausa', 'Terminado'];
   // Prioridad geográfica: A = pegado a la base (Coronel Quesada 1218, Ituzaingó),
   // B = distancia razonable para visitar, C = más lejos pero todavía tiene sentido recorrer.
   const PRIORIDADES = ['A', 'B', 'C'];
@@ -114,7 +171,7 @@
     { id: 'mant',       cat: 'Mantenimiento',    nombre: 'Mantenimiento',      precio: 50000,  recurrente: true,  detalle: 'SEO · Optimización · Actualizaciones · Soporte', contenidos: {} },
   ];
 
-  function defaultData() { return { prospectos: [], clientes: [], tareas: [], eventos: [], metas: [], tiempos: [], _seeded: false }; }
+  function defaultData() { return { prospectos: [], clientes: [], tareas: [], eventos: [], metas: [], proyectos: [], rutinas: [], tiempos: [], _seeded: false }; }
 
   // Categorías de eventos del calendario (con color)
   const CATEGORIAS_EVENTO = [
@@ -168,9 +225,16 @@
   const Cloud = {
     client: null,
     enabled: false,
+    faltantes: [], // tablas que Supabase todavía no tiene (falta correr el SQL)
     init() {
       try {
-        if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase && window.supabase.createClient) {
+        // Se reusa el cliente que ya creó auth.js: es el que lleva la sesión
+        // del usuario. Si se creara otro acá, las consultas viajarían sin
+        // firmar y dejarían de funcionar el día que se cierre la base.
+        if (window.Auth && window.Auth.client) {
+          this.client = window.Auth.client;
+          this.enabled = true;
+        } else if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase && window.supabase.createClient) {
           this.client = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
             realtime: { params: { eventsPerSecond: 5 } },
           });
@@ -199,7 +263,14 @@
             if (!data || data.length < PAGE) break;
           }
           cache[t] = filas.map(r => r.data);
-        } catch (e) { console.warn('Tabla no disponible aún: ' + t + ' (¿falta correr el SQL?)', e && e.message); }
+          this.faltantes = this.faltantes.filter(x => x !== t);
+        } catch (e) {
+          // Una tabla que todavía no existe en Supabase no rompe nada, pero sí
+          // hace que esos datos queden sólo en este dispositivo. Lo anotamos
+          // para poder avisarlo en pantalla en vez de que pase desapercibido.
+          if (!this.faltantes.includes(t)) this.faltantes.push(t);
+          console.warn('Tabla no disponible aún: ' + t + ' (¿falta correr el SQL?)', e && e.message);
+        }
       }
     },
     // Devuelve la promesa para que quien haga escrituras masivas pueda esperarlas de a tandas.
@@ -341,6 +412,7 @@
     }
     migrarFinanzas(); // normaliza datos existentes
     migrarServicios(); // clasifica servicio principal + prioridad de prospectos aún sin clasificar
+    migrarTareas();   // pasa las tareas viejas al modelo del sistema operativo
     return Cloud.enabled;
   }
 
@@ -665,17 +737,40 @@
   /* ============================================================
      TAREAS
      ============================================================ */
+  function tareaBase() {
+    return {
+      id: '', fechaCreacion: '', titulo: '', observaciones: '',
+      responsable: 'equipo',      // 'mateo' | 'santiago' | 'equipo'
+      sistema: '',                // 'prospeccion' | 'gestion' | 'optimizacion'
+      proyectoId: '', rutinaId: '',
+      fecha: '', turno: '',       // 'Mañana' | 'Tarde' | ''
+      prioridad: 'Media', estado: 'Pendiente',
+      objetivo: 0, avance: 0, unidad: '',   // contador de volumen (15 mails, 20 contactos…)
+      vinculoTipo: '', vinculoId: '',
+    };
+  }
   function getTareas() { return load().tareas; }
+  function getTarea(id) { return load().tareas.find(t => t.id === id); }
   function crearTarea(d) {
-    const t = Object.assign({ id: uid('TK'), fechaCreacion: nowISO(), titulo: '', responsable: '', fecha: '', prioridad: 'Media', observaciones: '', estado: 'Pendiente', vinculoTipo: '', vinculoId: '' }, d);
+    const t = Object.assign(tareaBase(), { id: uid('TK'), fechaCreacion: nowISO() }, d);
     load().tareas.unshift(t);
     save(); Cloud.push('tareas', t);
     return t;
+  }
+  // Crea una tarea con un id que decidimos nosotros. Se usa para las instancias
+  // de rutina (id = rutina + fecha + persona): si dos celulares abren la app al
+  // mismo tiempo, los dos escriben la MISMA fila en vez de duplicar la tarea.
+  function crearTareaConId(id, d) {
+    if (getTarea(id)) return null;
+    const t = Object.assign(tareaBase(), { id, fechaCreacion: nowISO() }, d);
+    load().tareas.unshift(t);
+    return t; // el push a la nube lo hace quien llama, en tanda
   }
   function actualizarTarea(id, cambios) {
     const t = load().tareas.find(x => x.id === id);
     if (t) {
       if (cambios.estado === 'Finalizada' && t.estado !== 'Finalizada') cambios.finalizadaEn = nowISO();
+      if (cambios.estado && cambios.estado !== 'Finalizada') cambios.finalizadaEn = '';
       Object.assign(t, cambios); save(); Cloud.push('tareas', t);
     }
     return t;
@@ -683,6 +778,104 @@
   function eliminarTarea(id) {
     cache.tareas = cache.tareas.filter(t => t.id !== id);
     save(); Cloud.remove('tareas', id);
+  }
+
+  // Suma (o resta) unidades a una tarea con contador. Al llegar al objetivo se
+  // da por finalizada sola: la idea es marcar una vez, no dos.
+  function sumarAvance(id, delta) {
+    const t = getTarea(id);
+    if (!t) return null;
+    const objetivo = +t.objetivo || 0;
+    const avance = Math.max(0, (+t.avance || 0) + delta);
+    const cambios = { avance };
+    if (objetivo > 0 && avance >= objetivo && t.estado !== 'Finalizada') cambios.estado = 'Finalizada';
+    if (objetivo > 0 && avance < objetivo && t.estado === 'Finalizada') cambios.estado = 'En Curso';
+    return actualizarTarea(id, cambios);
+  }
+
+  /* ---------- Migración de tareas al modelo nuevo (una vez por tarea) ----------
+     Traduce lo que venía de antes sin perder nada:
+       responsable "Mateo"  -> 'mateo'
+       prioridad   "A/B/C"  -> Alta/Media/Baja
+     y completa los campos nuevos con valores neutros. */
+  function migrarTareas() {
+    let n = 0;
+    (load().tareas || []).forEach(t => {
+      if (t._soInit) return;
+      const base = tareaBase();
+      Object.keys(base).forEach(k => { if (t[k] === undefined) t[k] = base[k]; });
+      const r = String(t.responsable || '').trim().toLowerCase();
+      if (r.startsWith('mateo')) t.responsable = 'mateo';
+      else if (r.startsWith('santi')) t.responsable = 'santiago';
+      else if (!r) t.responsable = 'equipo';
+      if (PRIO_TAREA_LEGACY[t.prioridad]) t.prioridad = PRIO_TAREA_LEGACY[t.prioridad];
+      if (!PRIORIDADES_TAREA.includes(t.prioridad)) t.prioridad = 'Media';
+      t._soInit = true; n++;
+      Cloud.push('tareas', t);
+    });
+    if (n) save();
+    return n;
+  }
+
+  /* ============================================================
+     PROYECTOS — los trabajos abiertos (clientes, web propia, marca personal…)
+     ============================================================ */
+  function getProyectos() { return load().proyectos || []; }
+  function getProyecto(id) { return getProyectos().find(p => p.id === id); }
+  function crearProyecto(d) {
+    const p = Object.assign({
+      id: uid('PR'), fechaCreacion: nowISO(), nombre: '', sistema: 'gestion',
+      responsable: 'equipo', estado: 'Activo', objetivo: '', fechaObjetivo: '',
+      clienteId: '', notas: '',
+    }, d);
+    load().proyectos.unshift(p);
+    save(); Cloud.push('proyectos', p);
+    return p;
+  }
+  function actualizarProyecto(id, cambios) {
+    const p = getProyecto(id);
+    if (p) { Object.assign(p, cambios); save(); Cloud.push('proyectos', p); }
+    return p;
+  }
+  function eliminarProyecto(id) {
+    cache.proyectos = (cache.proyectos || []).filter(p => p.id !== id);
+    // Las tareas del proyecto NO se borran: quedan sueltas, no se pierde historial.
+    (cache.tareas || []).forEach(t => { if (t.proyectoId === id) { t.proyectoId = ''; Cloud.push('tareas', t); } });
+    save(); Cloud.remove('proyectos', id);
+  }
+
+  /* ============================================================
+     RUTINAS — plantillas de las tareas que se repiten
+     ------------------------------------------------------------
+     Una rutina no es una tarea: es la REGLA que dice "esto va todos los
+     días de lunes a sábado, lo hace Mateo, y son 15 mails". El sistema
+     fabrica la tarea del día solo (ver sistema.js).
+     ============================================================ */
+  function getRutinas() { return load().rutinas || []; }
+  function getRutina(id) { return getRutinas().find(r => r.id === id); }
+  function crearRutina(d) {
+    const r = Object.assign({
+      id: uid('RU'), fechaCreacion: nowISO(), titulo: '', observaciones: '',
+      sistema: 'prospeccion', proyectoId: '',
+      responsable: 'ambos',     // 'mateo' | 'santiago' | 'ambos' | 'equipo'
+      dias: [1, 2, 3, 4, 5, 6], // 0=domingo … 6=sábado
+      turno: '', prioridad: 'Media',
+      objetivo: 0, unidad: '',
+      activa: true, desde: new Date().toISOString().slice(0, 10),
+    }, d);
+    load().rutinas.unshift(r);
+    save(); Cloud.push('rutinas', r);
+    return r;
+  }
+  function actualizarRutina(id, cambios) {
+    const r = getRutina(id);
+    if (r) { Object.assign(r, cambios); save(); Cloud.push('rutinas', r); }
+    return r;
+  }
+  function eliminarRutina(id) {
+    cache.rutinas = (cache.rutinas || []).filter(r => r.id !== id);
+    // Las tareas ya generadas quedan: son el historial de cumplimiento.
+    save(); Cloud.remove('rutinas', id);
   }
 
   /* ============================================================
@@ -809,7 +1002,15 @@
     agregarFactura, actualizarFactura, eliminarFactura, duplicarFactura,
     registrarPago, actualizarPago, eliminarPago, finanzasCliente,
     agregarHistorialCliente,
-    getTareas, crearTarea, actualizarTarea, eliminarTarea,
+    getTareas, getTarea, crearTarea, crearTareaConId, actualizarTarea, eliminarTarea, sumarAvance, migrarTareas,
+    // Sistema operativo
+    SISTEMAS, sistemaDe, RESPONSABLES, RESP_EQUIPO, responsableDe,
+    PRIORIDADES_TAREA, PRIO_TAREA_COLOR, UNIDADES, unidadCorta, TURNOS, DIAS_CORTOS, RECURRENCIAS, ESTADOS_PROYECTO,
+    getProyectos, getProyecto, crearProyecto, actualizarProyecto, eliminarProyecto,
+    getRutinas, getRutina, crearRutina, actualizarRutina, eliminarRutina,
+    cloudPush: (tabla, obj) => Cloud.push(tabla, obj),
+    get tablasFaltantes() { return Cloud.enabled ? Cloud.faltantes.slice() : []; },
+    guardarLocal: save,
     exportar, importar, importarProspectos, reset, seedIfEmpty, nowISO,
     init, get cloudEnabled() { return Cloud.enabled; }, onRemoteChange: null,
   };

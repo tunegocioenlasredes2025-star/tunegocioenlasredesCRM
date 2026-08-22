@@ -3,12 +3,13 @@
    - Cachea el shell para que la app abra offline.
    - Recibe notificaciones push (cuando se configure el enviador).
    ============================================================ */
-const CACHE = 'tnr-cache-v23';
+const CACHE = 'tnr-cache-v29';
 const ASSETS = [
   './', './index.html',
-  './styles.css?v=23', './icons.js?v=23', './config.js?v=23',
-  './data.js?v=23', './parser.js?v=23', './app.js?v=23',
-  './logo.png', './logo.svg', './manifest.json',
+  './styles.css?v=29', './icons.js?v=29', './config.js?v=29', './auth.js?v=29',
+  './data.js?v=29', './sistema.js?v=29', './parser.js?v=29',
+  './so-vista.js?v=29', './app.js?v=29',
+  './logo.png', './logo.svg', './favicon.png', './apple-touch-icon.png', './manifest.json',
 ];
 
 self.addEventListener('install', (e) => {
@@ -40,7 +41,7 @@ self.addEventListener('push', (e) => {
   let d = { title: 'TNR · Sistema Operativo', body: 'Tenés alertas pendientes', url: './' };
   try { if (e.data) d = Object.assign(d, e.data.json()); } catch (_) {}
   e.waitUntil(self.registration.showNotification(d.title, {
-    body: d.body, icon: 'logo.png', badge: 'logo.png',
+    body: d.body, icon: 'favicon.png', badge: 'favicon.png',
     data: { url: d.url || './' }, vibrate: [80, 40, 80], tag: 'tnr-push',
   }));
 });
