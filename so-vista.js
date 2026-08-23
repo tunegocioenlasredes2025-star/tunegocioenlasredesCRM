@@ -79,10 +79,12 @@
       opts.mostrarResp !== false ? `<span class="so-meta-x">${esc(nombreDe(t.responsable))}</span>` : '',
       proy ? `<span class="so-meta-x">${esc(proy.nombre)}</span>` : '',
       opts.mostrarFecha && t.fecha ? `<span class="so-meta-x">${fmtDate(t.fecha)}</span>` : '',
+      S().estadoDe(t) === 'Descartada' ? `<span class="so-meta-x so-desc-tag">descartada</span>` : '',
       t.rutinaId ? `<span class="so-meta-x so-rec" title="Se repite sola">${icon('repeat', 12)}</span>` : '',
     ].filter(Boolean).join('');
 
-    return `<article class="so-task${hecha ? ' done' : ''}${est === 'Vencida' ? ' late' : ''}">
+    const descartada = est === 'Descartada';
+    return `<article class="so-task${hecha ? ' done' : ''}${est === 'Vencida' ? ' late' : ''}${descartada ? ' descartada' : ''}">
       <button class="so-check" onclick="SO.completar('${t.id}')" aria-label="${hecha ? 'Desmarcar' : 'Marcar como hecha'}">${icon('check', 16)}</button>
       <div class="so-task-body" onclick="SO.abrirTarea('${t.id}')">
         <div class="so-task-title">${prioPunto(t.prioridad)}${esc(t.titulo)}</div>
@@ -184,7 +186,9 @@
 
       ${vencidas.length ? `
       <section class="so-block so-block-alert">
-        <h2>${icon('alert', 15)} Quedó colgado</h2>
+        <h2>${icon('alert', 15)} Quedó colgado
+          <button class="so-limpiar" onclick="SO.descartarAtrasadas('${persona}')">Descartar las ${vencidas.length}</button>
+        </h2>
         ${listaTareas(vencidas, { mostrarFecha: true, mostrarResp: persona === 'todos' })}
       </section>` : ''}
 
@@ -207,6 +211,7 @@
       ${personales.length ? `
       <section class="so-block">
         <h2><span class="so-sys" style="--c:${DB.sistemaDe('personal').color}">Personal</span>
+          ${agPers.vencidas.length ? `<button class="so-limpiar" onclick="SO.descartarAtrasadas('${persona}','personal')">Descartar ${agPers.vencidas.length} atrasada${agPers.vencidas.length > 1 ? 's' : ''}</button>` : ''}
           <span class="so-block-count">${rPers.hechas}/${rPers.total}</span></h2>
         ${barra(rPers.pct, DB.sistemaDe('personal').color)}
         <div style="height:10px"></div>
@@ -342,13 +347,16 @@
      VISTA · TAREAS
      ============================================================ */
   function renderTareas() {
-    let list = DB.getTareas().slice();
+    // Las descartadas sólo aparecen si se las pide: son las que uno decidió
+    // dar por perdidas, no tienen por qué ensuciar la lista todos los días.
+    let list = S().todas(filtros.estado === 'descartadas').slice();
     const resp = filtros.resp || foco();
     if (resp !== 'todos') list = list.filter(t => S().esDe(t, resp));
     if (filtros.sistema) list = list.filter(t => t.sistema === filtros.sistema);
     if (filtros.estado === 'abiertas') list = list.filter(t => !S().esHecha(t));
     else if (filtros.estado === 'hechas') list = list.filter(S().esHecha);
     else if (filtros.estado === 'vencidas') list = list.filter(t => S().estadoDe(t) === 'Vencida');
+    else if (filtros.estado === 'descartadas') list = list.filter(S().esDescartada);
 
     // Agrupadas por día para que se lea como una agenda, no como un Excel.
     // La clave lleva un número adelante a propósito: sin eso, ordenar de forma
@@ -378,7 +386,7 @@
           ${DB.SISTEMAS.map(s => `<button class="so-chip ${filtros.sistema === s.id ? 'on' : ''}" style="--c:${s.color}" onclick="SO.filtrar('sistema','${s.id}')">${esc(s.corto)}</button>`).join('')}
         </div>
         <div class="so-chips">
-          ${[['abiertas', 'Sin terminar'], ['vencidas', 'Vencidas'], ['hechas', 'Hechas'], ['todas', 'Todas']]
+          ${[['abiertas', 'Sin terminar'], ['vencidas', 'Vencidas'], ['hechas', 'Hechas'], ['descartadas', 'Descartadas'], ['todas', 'Todas']]
             .map(([k, l]) => `<button class="so-chip ${filtros.estado === k ? 'on' : ''}" onclick="SO.filtrar('estado','${k}')">${l}</button>`).join('')}
         </div>
       </div>
@@ -873,7 +881,9 @@
       <div class="field full"><label>Notas</label><textarea name="observaciones" rows="2">${esc(t.observaciones || '')}</textarea></div>
     </div>
     <div class="form-foot">
-      ${t.id && !t.rutinaId ? `<button type="button" class="btn-ghost danger" onclick="SO.borrarTarea('${t.id}')">${icon('trash')} Eliminar</button>` : ''}
+      ${t.id ? (t.rutinaId
+        ? `<button type="button" class="btn-ghost danger" onclick="SO.descartar('${t.id}')">${icon('x')} Descartar</button>`
+        : `<button type="button" class="btn-ghost danger" onclick="SO.borrarTarea('${t.id}')">${icon('trash')} Eliminar</button>`) : ''}
       <button type="button" class="btn-secondary" onclick="TNRUI.closeModal()">Cancelar</button>
       <button type="submit" class="btn-primary">${t.id ? 'Guardar' : 'Crear tarea'}</button>
     </div></form>`;
@@ -1008,6 +1018,9 @@
     completar(id) {
       const t = DB.getTarea(id);
       if (!t) return;
+      // Si estaba descartada, el toque la trae de vuelta: descartar no es
+      // definitivo, es "hoy no" — y uno puede arrepentirse.
+      if (S().esDescartada(t)) { DB.actualizarTarea(id, { estado: 'Pendiente' }); toast('Vuelve a contar', 'ok'); refrescar(); return; }
       if (S().esHecha(t)) DB.actualizarTarea(id, { estado: 'Pendiente', avance: 0 });
       else DB.actualizarTarea(id, { estado: 'Finalizada', avance: Math.max(+t.avance || 0, +t.objetivo || 0) });
       refrescar();
@@ -1043,12 +1056,35 @@
       const t = DB.getTarea(id); if (!t) return;
       const esRutina = !!t.rutinaId;
       openModal(esRutina ? 'Tarea de rutina' : 'Editar tarea', formTarea(t) +
-        (esRutina ? `<p class="so-note">Esta tarea la fabrica una rutina. Si querés cambiarla para siempre (o dejar de hacerla), editá la rutina.
+        (esRutina ? `<p class="so-note"><strong>Descartar</strong> saca esta tarea de la vista y de los números: no cuenta como hecha
+          ni como pendiente. Se usa para el día que no se pudo y ya está. La rutina sigue igual: mañana vuelve a aparecer.
+          Si querés dejar de hacerla del todo, pausá la rutina.
           <button class="btn-ghost" style="margin-top:8px" onclick="TNRUI.closeModal();SO.editarRutina('${t.rutinaId}')">${icon('repeat', 13)} Ir a la rutina</button></p>` : ''));
       document.getElementById('soFormTarea').onsubmit = e => {
         e.preventDefault();
         DB.actualizarTarea(id, leer('soFormTarea')); closeModal(); toast('Guardado', 'ok'); refrescar();
       };
+    },
+    descartar(id) {
+      closeModal();
+      const t = DB.getTarea(id); if (!t) return;
+      confirmDialog('Descartar tarea',
+        'Sale de la vista y de los números: no cuenta como hecha ni como pendiente. La rutina sigue andando y mañana vuelve a aparecer.',
+        'Descartar', () => { DB.actualizarTarea(id, { estado: DB.ESTADO_DESCARTADA }); toast('Descartada', 'ok'); refrescar(); });
+    },
+    descartarAtrasadas(persona, ambito) {
+      const cuantas = S().tareasDe({
+        resp: persona, ambito: ambito || 'tnr',
+        rango: { desde: '0000-01-01', hasta: S().sumarDias(S().hoy(), -1) },
+      }).filter(t => !S().esHecha(t)).length;
+      if (!cuantas) { toast('No hay nada atrasado', 'ok'); return; }
+      confirmDialog('Descartar lo atrasado',
+        'Son ' + cuantas + ' tarea' + (cuantas > 1 ? 's' : '') + ' de días anteriores que no se hicieron. Salen de la vista y de los números. Lo de hoy no se toca.',
+        'Descartar ' + cuantas, () => {
+          const n = S().descartarAtrasadas(persona, ambito || 'tnr');
+          toast(n + ' descartada' + (n > 1 ? 's' : ''), 'ok');
+          refrescar();
+        });
     },
     borrarTarea(id) {
       closeModal();

@@ -75,6 +75,12 @@
 
   const ESTADOS_CONTENIDO = ['Pendiente', 'En Diseño', 'En Revisión', 'Esperando Cliente', 'Aprobado', 'Programado', 'Publicado'];
   const ESTADOS_TAREA = ['Pendiente', 'En Curso', 'Finalizada'];
+  // Descartar no es lo mismo que borrar. Una tarea de rutina no se puede
+  // borrar de verdad: el motor la volvería a fabricar mañana, porque rellena
+  // los últimos 7 días. Marcarla DESCARTADA es lo que la saca de la vista y
+  // de los números, y a la vez deja la constancia de que ese día existió.
+  // O sea: la fila que queda ES lo que impide que reaparezca.
+  const ESTADO_DESCARTADA = 'Descartada';
 
   /* ============================================================
      SISTEMA OPERATIVO — los tres sistemas de trabajo de TNR
@@ -804,6 +810,8 @@
     if (t) {
       if (cambios.estado === 'Finalizada' && t.estado !== 'Finalizada') cambios.finalizadaEn = nowISO();
       if (cambios.estado && cambios.estado !== 'Finalizada') cambios.finalizadaEn = '';
+      if (cambios.estado === ESTADO_DESCARTADA) cambios.descartadaEn = nowISO();
+      else if (cambios.estado) cambios.descartadaEn = '';
       Object.assign(t, cambios); save(); Cloud.push('tareas', t);
     }
     return t;
@@ -1053,7 +1061,7 @@
 
   /* ---------- API pública ---------- */
   window.DB = {
-    METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF, CANALES_CONTACTO,
+    METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, ESTADO_DESCARTADA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF, CANALES_CONTACTO,
     TIPOS_PROSPECTO, TIPO_FERRETERIA, TIPO_PAUTA, SUBTIPOS, subtipoDe, migrarProspectos, sincronizarTodo,
     CANALES, canalColor: (id) => (CANALES.find(c => c.id === id) || {}).color || '#8b94a8',
     clasificarServicios, prioridadDe, migrarServicios,

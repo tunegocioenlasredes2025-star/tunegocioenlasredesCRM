@@ -115,7 +115,7 @@
     const rutina = DB.getRutina(rutinaId);
     if (!rutina) return 0;
     const h = hoy();
-    const tocadas = DB.getTareas().filter(t => t.rutinaId === rutinaId && t.fecha >= h && !esHecha(t));
+    const tocadas = DB.getTareas().filter(t => t.rutinaId === rutinaId && t.fecha >= h && !esHecha(t) && !esDescartada(t));
     tocadas.forEach(t => DB.actualizarTarea(t.id, {
       titulo: rutina.titulo,
       observaciones: rutina.observaciones || '',
@@ -136,7 +136,7 @@
       }
     }
     DB.getTareas()
-      .filter(t => t.rutinaId === rutinaId && t.fecha >= h && !esHecha(t) && !(+t.avance) && !validas.has(t.id))
+      .filter(t => t.rutinaId === rutinaId && t.fecha >= h && !esHecha(t) && !esDescartada(t) && !(+t.avance) && !validas.has(t.id))
       .forEach(t => DB.eliminarTarea(t.id));
     return tocadas.length;
   }
@@ -160,12 +160,17 @@
   // "Vencida" no se guarda: se deduce. Una tarea de ayer sin terminar está
   // vencida hoy, y mañana lo seguirá estando, sin que nadie la toque.
   function estadoDe(t) {
+    if (t.estado === DB.ESTADO_DESCARTADA) return 'Descartada';
     if (t.estado === 'Finalizada') return 'Hecha';
     if (t.fecha && t.fecha < hoy()) return 'Vencida';
     if (t.estado === 'En Curso' || (+t.avance || 0) > 0) return 'En curso';
     return 'Pendiente';
   }
   const esHecha = (t) => t.estado === 'Finalizada';
+  // Descartada = "ese día no se hizo y ya está". No suma ni resta: sale del
+  // numerador y también del denominador. Si restara, el porcentaje castigaría
+  // dos veces; si sumara, sería mentir.
+  const esDescartada = (t) => t.estado === DB.ESTADO_DESCARTADA;
 
   // ¿Esta tarea le toca a esta persona? Las compartidas le tocan a los dos.
   function esDe(t, respId) {
@@ -185,7 +190,9 @@
   }
   // Todas las tareas que esta persona tiene derecho a ver. Es la base de todo
   // lo que sigue: nada en sistema.js lee DB.getTareas() directo.
-  function todas() { return DB.getTareas().filter(puedeVer); }
+  function todas(incluirDescartadas) {
+    return DB.getTareas().filter(t => puedeVer(t) && (incluirDescartadas || !esDescartada(t)));
+  }
 
   // ¿Esta tarea entra en el porcentaje de TNR? Lo personal no: si contara,
   // un día con los perros atendidos subiría el cumplimiento comercial.
@@ -198,7 +205,7 @@
 
   function tareasDe(opts) {
     opts = opts || {};
-    let list = todas().filter(t => enRango(t.fecha, opts.rango || rango('hoy')));
+    let list = todas(opts.incluirDescartadas).filter(t => enRango(t.fecha, opts.rango || rango('hoy')));
     if (opts.resp) list = list.filter(t => esDe(t, opts.resp));
     if (opts.sistema) list = list.filter(t => t.sistema === opts.sistema);
     if (opts.proyectoId) list = list.filter(t => t.proyectoId === opts.proyectoId);
@@ -207,9 +214,9 @@
   }
 
   // Todo lo que hay para hacer hoy: las de hoy + las que quedaron colgadas.
-  function agendaDe(respId, ref, ambito) {
+  function agendaDe(respId, ref, ambito, opts_incluir) {
     const h = ref || hoy();
-    let mias = todas().filter(t => esDe(t, respId));
+    let mias = todas(opts_incluir).filter(t => esDe(t, respId));
     if (ambito) mias = porAmbito(mias, ambito);
     const deHoy = mias.filter(t => t.fecha === h);
     const vencidas = mias.filter(t => t.fecha && t.fecha < h && !esHecha(t));
@@ -272,6 +279,16 @@
       f = sumarDias(f, -1);
     }
     return n;
+  }
+
+  /* Descarta de un saque todo lo que quedó atrasado. Devuelve cuántas.
+     Nunca toca lo de hoy: sólo lo que ya venció y no se hizo. */
+  function descartarAtrasadas(respId, ambito) {
+    const h = hoy();
+    let list = todas().filter(t => esDe(t, respId) && t.fecha && t.fecha < h && !esHecha(t));
+    if (ambito) list = porAmbito(list, ambito);
+    list.forEach(t => DB.actualizarTarea(t.id, { estado: DB.ESTADO_DESCARTADA }));
+    return list.length;
   }
 
   /* ============================================================
@@ -494,7 +511,8 @@
   window.Sistema = {
     ymd, hoy, fromYmd, sumarDias, diaSemana, lunesDe, rango, enRango,
     generarTareas, sincronizarRutina, arrancar, cargarPlanInicial, subirEnTandas,
-    estadoDe, esHecha, esDe, puedeVer, todas, porAmbito, tareasDe, agendaDe, resumen, porSistema, contadores, racha,
+    estadoDe, esHecha, esDescartada, descartarAtrasadas, esDe, puedeVer, todas, porAmbito,
+    tareasDe, agendaDe, resumen, porSistema, contadores, racha,
     bloquesDe, bloqueAhora, horasSemana, choques, ahoraHHMM, aMin, dur,
     personasDe, tocaEseDia, HORIZONTE_DIAS,
   };
