@@ -404,13 +404,23 @@
      su lista propia: si después cambia un prospecto, no se le mueve. */
   async function confirmar(campanaId, segmento, opciones) {
     const o = opciones || {};
-    const filas = segmento.incluidos.map(i => ({
+    // Todas las filas tienen que tener EXACTAMENTE las mismas columnas: si en
+    // una tanda hay unas con "motivo" y otras sin, la base rechaza la tanda
+    // entera con "All object keys must match".
+    const fila = (extra) => Object.assign({
       campana_id: campanaId,
+      prospecto_id: '',
+      telefono: '',
+      variables: {},
+      variante: o.variante || null,
+      estado: 'pendiente',
+      motivo: null,
+    }, extra);
+
+    const filas = segmento.incluidos.map(i => fila({
       prospecto_id: i.prospecto.id,
       telefono: i.telefono,
       variables: i.variables,
-      variante: o.variante || null,
-      estado: 'pendiente',
     }));
 
     if (o.guardarExcluidos !== false) {
@@ -420,23 +430,33 @@
         // "quedó afuera por teléfono inválido" es justamente lo que hay que
         // poder ver después. Como la columna no admite vacío y no puede
         // repetirse dentro de la campaña, se marca con el id del prospecto.
-        filas.push({
-          campana_id: campanaId,
+        filas.push(fila({
           prospecto_id: e.prospecto.id,
           telefono: tel.ok ? tel.e164 : (SIN_NUMERO + e.prospecto.id),
-          variables: {},
           estado: 'suprimido',
           motivo: e.motivo + (e.detalle ? ' (' + e.detalle + ')' : ''),
-        });
+        }));
       });
     }
+
+    // Dentro de una campaña no puede repetirse el teléfono (lo impide la base).
+    // El caso que choca es el prospecto excluido POR duplicado: tiene el mismo
+    // número que el que sí entró. Para no perderlo del listado, se lo guarda
+    // con una marca propia y el número real pasa al motivo, que es donde se lee.
+    const usados = new Set();
+    filas.forEach(f => {
+      if (!usados.has(f.telefono)) { usados.add(f.telefono); return; }
+      const real = f.telefono;
+      f.telefono = SIN_NUMERO + f.prospecto_id;
+      f.motivo = (f.motivo || 'Repetido') + ' · ' + real;
+    });
 
     // De a 200 y con respiro: el navegador corta las conexiones si se le
     // encajan mil filas de una (la misma lección que sincronizarTodo).
     let insertadas = 0;
     for (let i = 0; i < filas.length; i += 200) {
       const tanda = filas.slice(i, i + 200);
-      await pedir('campana_destinatarios', {
+      await pedir('campana_destinatarios?on_conflict=campana_id,telefono', {
         method: 'POST',
         headers: Object.assign({}, HEAD, { Prefer: 'resolution=ignore-duplicates,return=minimal' }),
         body: JSON.stringify(tanda),
