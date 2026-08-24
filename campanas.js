@@ -46,7 +46,10 @@
     { id: 'empresa',  label: 'Empresa',  de: p => p.empresa || p.nombre || '' },
     { id: 'rubro',    label: 'Rubro',    de: p => p.rubro || '' },
     { id: 'ciudad',   label: 'Ciudad',   de: p => p.ciudad || '' },
-    { id: 'servicio', label: 'Servicio', de: p => (p.servicios && p.servicios[0]) || '' },
+    { id: 'servicio', label: 'Servicio del prospecto', de: p => (p.servicios && p.servicios[0]) || '' },
+    // Lo que ofrece ESTA campaña. No sale del prospecto sino de la campaña, así
+    // que es igual para todos. Se resuelve aparte, en reemplazarVariables.
+    { id: 'oferta', label: 'Lo que ofrecemos', de: () => '', deCampana: 'servicioOfrecido' },
   ];
 
   const MOTIVOS_SUPRESION = {
@@ -238,10 +241,12 @@
       .trim();
   }
 
-  function reemplazarVariables(texto, prospecto) {
+  function reemplazarVariables(texto, prospecto, campana) {
     const resuelto = String(texto || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (todo, clave) => {
       const v = VARIABLES.find(x => x.id === clave);
-      return v ? (v.de(prospecto) || '') : todo;
+      if (!v) return todo;
+      if (v.deCampana) return (campana && campana[v.deCampana]) || '';
+      return v.de(prospecto) || '';
     });
     return limpiar(resuelto);
   }
@@ -253,10 +258,12 @@
     return encontradas;
   }
 
-  function faltantes(texto, prospecto) {
-    return variablesDe(texto).filter(c => {
-      const v = VARIABLES.find(x => x.id === c);
-      return !v || !String(v.de(prospecto) || '').trim();
+  function faltantes(texto, prospecto, campana) {
+    return variablesDe(texto).filter(clave => {
+      const v = VARIABLES.find(x => x.id === clave);
+      if (!v) return true;
+      if (v.deCampana) return !String((campana && campana[v.deCampana]) || '').trim();
+      return !String(v.de(prospecto) || '').trim();
     });
   }
 
@@ -272,13 +279,22 @@
      el motor después no vuelve a elegir, sólo ejecuta.
   ---------------------------------------------------------------- */
 
+  // Valor especial del filtro de tipo: los prospectos que no son ni ferretería
+  // ni empresa para pauta. Sin esto no había forma de pedir "los otros": dejar
+  // el filtro vacío traía a todos, y ahí es donde el contador daba un número
+  // más grande del que uno esperaba.
+  const SIN_TIPO = '__sin_tipo__';
+
   function pasaFiltro(p, c) {
-    if (c.tipo && (p.tipo || '') !== c.tipo) return false;
+    if (c.tipo === SIN_TIPO) { if (p.tipo) return false; }
+    else if (c.tipo && (p.tipo || '') !== c.tipo) return false;
+
     if (c.subtipo && (p.subtipo || '') !== c.subtipo) return false;
     if (c.rubro && (p.rubro || '') !== c.rubro) return false;
     if (c.ciudad && (p.ciudad || '') !== c.ciudad) return false;
     if (c.prioridad && (p.prioridad || '') !== c.prioridad) return false;
     if (c.estado && (p.estado || '') !== c.estado) return false;
+    if (c.metodoContacto && (p.metodoContacto || '') !== c.metodoContacto) return false;
     if (c.segmento && (p.segmento || '') !== c.segmento) return false;
     if (c.soloSinContactar) {
       const canales = p.canalesContacto || [];
@@ -289,6 +305,30 @@
       if ((p.canalesContacto || []).indexOf('WhatsApp') >= 0) return false;
     }
     return true;
+  }
+
+  // Los mismos filtros pero de a uno, para poder mostrar en pantalla dónde se
+  // cae cada prospecto. Sin esto el contador es un número que hay que creerle.
+  function pasosDelFiltro(c) {
+    const pasos = [];
+    if (c.tipo === SIN_TIPO) pasos.push({ label: 'Ni ferretería ni empresa para pauta', ok: p => !p.tipo });
+    else if (c.tipo)         pasos.push({ label: 'Tipo: ' + c.tipo, ok: p => (p.tipo || '') === c.tipo });
+    if (c.subtipo)   pasos.push({ label: 'Subtipo: ' + c.subtipo,   ok: p => (p.subtipo || '') === c.subtipo });
+    if (c.rubro)     pasos.push({ label: 'Rubro: ' + c.rubro,       ok: p => (p.rubro || '') === c.rubro });
+    if (c.ciudad)    pasos.push({ label: 'Ciudad: ' + c.ciudad,     ok: p => (p.ciudad || '') === c.ciudad });
+    if (c.prioridad) pasos.push({ label: 'Prioridad: ' + c.prioridad, ok: p => (p.prioridad || '') === c.prioridad });
+    if (c.estado)    pasos.push({ label: 'Estado: ' + c.estado,     ok: p => (p.estado || '') === c.estado });
+    if (c.metodoContacto) pasos.push({ label: 'Se contacta por: ' + c.metodoContacto, ok: p => (p.metodoContacto || '') === c.metodoContacto });
+    if (c.segmento)  pasos.push({ label: 'Segmento: ' + c.segmento, ok: p => (p.segmento || '') === c.segmento });
+    if (c.soloSinContactar) pasos.push({
+      label: 'Nunca contactado por ningún canal',
+      ok: p => !(p.canalesContacto || []).length && !/^Contactado/i.test(String(p.estado || '')),
+    });
+    if (c.sinWhatsAppPrevio) pasos.push({
+      label: 'Nunca contactado por WhatsApp',
+      ok: p => (p.canalesContacto || []).indexOf('WhatsApp') < 0,
+    });
+    return pasos;
   }
 
   function diasDesde(iso) {
@@ -307,6 +347,17 @@
 
     const incluidos = [], excluidos = [];
     const yaVisto = new Map();   // teléfono → prospecto que se lo quedó
+
+    // El embudo: cuántos quedan después de cada filtro. Es para que en pantalla
+    // se pueda seguir el número desde "toda la base" hasta "estos reciben",
+    // en vez de tener que confiar en el total.
+    const todos = DB.getProspectos() || [];
+    const embudo = [{ label: 'Toda la base', quedan: todos.length }];
+    let vivos = todos;
+    pasosDelFiltro(c).forEach(paso => {
+      vivos = vivos.filter(paso.ok);
+      embudo.push({ label: paso.label, quedan: vivos.length });
+    });
 
     (DB.getProspectos() || []).forEach(p => {
       if (!pasaFiltro(p, c)) return;
@@ -330,17 +381,23 @@
       yaVisto.set(tel.e164, p);
 
       const variables = {};
-      VARIABLES.forEach(v => { variables[v.id] = v.de(p); });
+      VARIABLES.forEach(v => { variables[v.id] = v.deCampana ? '' : v.de(p); });
+      // Lo que ofrece la campaña viaja congelado con cada destinatario, así el
+      // motor resuelve el texto sin tener que saber nada de la campaña.
+      variables.oferta = c.servicioOfrecido || '';
 
       incluidos.push({
         prospecto: p,
         telefono: tel.e164,
         variables: variables,
-        faltantes: plantillaTexto ? faltantes(plantillaTexto, p) : [],
+        faltantes: plantillaTexto ? faltantes(plantillaTexto, p, c) : [],
       });
     });
 
-    return { incluidos: incluidos, excluidos: excluidos, diasMinimos: dias };
+    embudo.push({ label: 'Con teléfono válido y sin repetir', quedan: incluidos.length + 0 });
+    embudo.push({ label: 'RECIBEN EL MENSAJE', quedan: incluidos.length, final: true });
+
+    return { incluidos: incluidos, excluidos: excluidos, diasMinimos: dias, embudo: embudo };
   }
 
   /* Congela el segmento en la base. De acá en adelante la campaña tiene
@@ -400,7 +457,7 @@
 
   window.CAMP = {
     ESTADOS_CAMPANA, ESTADOS_DEST, VARIABLES, MOTIVOS_SUPRESION,
-    SIN_NUMERO, esSinNumero,
+    SIN_NUMERO, esSinNumero, SIN_TIPO,
     hayNube, tablasListas,
     listar, obtener, crear, actualizar, eliminar, resumen, resumenTodas,
     destinatarios,

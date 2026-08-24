@@ -199,7 +199,13 @@
   function abrirEditor() {
     borrador = {
       nombre: '',
-      criterio: { soloSinContactar: true, diasMinimos: 30 },
+      criterio: {
+        soloSinContactar: true, diasMinimos: 30,
+        tipo: CAMP.SIN_TIPO,          // por defecto, los que no son ferretería ni pauta
+        estado: 'Prospecto',          // los que todavía no se tocaron
+        metodoContacto: 'Wsp',        // y que se contactan por WhatsApp
+        servicioOfrecido: 'Página Web',
+      },
       mensaje: '',
       canal: 'prueba',
       cupo_diario: 40,
@@ -230,6 +236,19 @@
         </select>
       </div>`;
 
+    // Lista fija: las opciones salen del catálogo del CRM, no de los datos.
+    const selFijo = (id, label, opciones, valor, todos) => `
+      <div class="field"><label>${esc(label)}</label>
+        <select data-crit="${id}">
+          ${todos === false ? '' : `<option value="">${esc(todos || 'Todos')}</option>`}
+          ${opciones.map(o => {
+            const v = typeof o === 'string' ? o : o.v;
+            const t = typeof o === 'string' ? o : o.t;
+            return `<option value="${esc(v)}"${valor === v ? ' selected' : ''}>${esc(t)}</option>`;
+          }).join('')}
+        </select>
+      </div>`;
+
     host.innerHTML = `
       <div class="view-head">
         <h1>Nueva campaña</h1>
@@ -252,7 +271,12 @@
           <div class="panel">
             <div class="panel-title">2 · A quién le llega</div>
             <div class="form-grid">
-              ${sel('tipo', 'Tipo', 'tipo', c.tipo)}
+              ${selFijo('tipo', 'Tipo de prospecto', [
+                { v: CAMP.SIN_TIPO, t: 'Ni ferretería ni pauta (el resto)' },
+                ...(DB.TIPOS_PROSPECTO || []),
+              ], c.tipo, 'Todos')}
+              ${selFijo('estado', 'Estado', (DB.ESTADOS_LEAD || []).map(e => e.id), c.estado, 'Cualquiera')}
+              ${selFijo('metodoContacto', 'Se contacta por', DB.METODOS_CONTACTO || [], c.metodoContacto, 'Cualquiera')}
               ${sel('ciudad', 'Ciudad', 'ciudad', c.ciudad)}
               ${sel('rubro', 'Rubro', 'rubro', c.rubro)}
               ${sel('prioridad', 'Prioridad', 'prioridad', c.prioridad)}
@@ -271,7 +295,13 @@
           </div>
 
           <div class="panel">
-            <div class="panel-title">3 · Qué les decimos</div>
+            <div class="panel-title">3 · Qué les ofrecemos</div>
+            ${selFijo('servicioOfrecido', 'Servicio de esta campaña', DB.SERVICIOS_PRINCIPAL || [], c.servicioOfrecido, false)}
+            <div class="cmp-nota" style="margin:12px 0 0">Podés meterlo en el texto con el botón <strong>Lo que ofrecemos</strong>.</div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title">4 · Qué les decimos</div>
             <textarea id="cmpMensaje" class="chat-input" placeholder="Hola {{nombre}}, ...">${esc(borrador.mensaje)}</textarea>
             <div class="cmp-vars">
               <span class="cell-dim">Insertar dato del prospecto:</span>
@@ -280,7 +310,7 @@
           </div>
 
           <div class="panel">
-            <div class="panel-title">4 · Ritmo</div>
+            <div class="panel-title">5 · Ritmo</div>
             <div class="form-grid">
               <div class="field"><label>Máximo por día</label>
                 <input type="number" min="1" max="1000" id="cmpCupo" value="${Number(borrador.cupo_diario)}" /></div>
@@ -362,12 +392,28 @@
 
     const conFaltantes = inc.filter(i => i.faltantes.length).length;
     const ejemplo = inc[previewIdx % Math.max(inc.length, 1)];
-    const texto = ejemplo ? CAMP.reemplazarVariables(borrador.mensaje, ejemplo.prospecto) : '';
+    const texto = ejemplo ? CAMP.reemplazarVariables(borrador.mensaje, ejemplo.prospecto, borrador.criterio) : '';
     const dias = Math.ceil(inc.length / Math.max(Number(borrador.cupo_diario) || 1, 1));
 
+    const embudo = segmento.embudo || [];
+
     box.innerHTML = `
+      <div class="panel cmp-embudo">
+        <div class="panel-title">De dónde salen</div>
+        ${embudo.map((e, i) => {
+          const previo = i > 0 ? embudo[i - 1].quedan : null;
+          const cayeron = previo === null ? 0 : previo - e.quedan;
+          return `<div class="cmp-emb-row${e.final ? ' cmp-emb-final' : ''}">
+            <span class="cmp-emb-txt">${esc(e.label)}</span>
+            <span class="cmp-emb-n">${num(e.quedan)}</span>
+            ${cayeron > 0 ? `<span class="cmp-emb-baja">−${num(cayeron)}</span>` : '<span class="cmp-emb-baja"></span>'}
+          </div>`;
+        }).join('')}
+      </div>
+
       <div class="panel cmp-resumen">
         <div class="cmp-big"><strong>${num(inc.length)}</strong><span>${inc.length === 1 ? 'persona recibe el mensaje' : 'personas reciben el mensaje'}</span></div>
+        ${borrador.criterio.servicioOfrecido ? `<div class="cmp-oferta">Les ofrecemos: <strong>${esc(borrador.criterio.servicioOfrecido)}</strong></div>` : ''}
         <div class="cmp-tiempo">${icon('clock', 14)} A ${num(borrador.cupo_diario)} por día son <strong>${dias} ${dias === 1 ? 'día' : 'días'}</strong> de envío</div>
         ${segmento.excluidos.length ? `
           <div class="cmp-excl">
