@@ -112,7 +112,7 @@
       cupo_diario: 50,
       intervalo_seg: 45,
       ventana_desde: '09:00',
-      ventana_hasta: '18:00',
+      ventana_hasta: '20:00',
       dias_semana: [1, 2, 3, 4, 5],
       creada_por: 'Mateo',
     }, datos);

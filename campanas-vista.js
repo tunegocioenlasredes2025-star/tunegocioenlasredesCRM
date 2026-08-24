@@ -211,7 +211,7 @@
       cupo_diario: 40,
       intervalo_seg: 45,
       ventana_desde: '09:00',
-      ventana_hasta: '18:00',
+      ventana_hasta: '20:00',
       programada_para: '',
     };
     segmento = null;
