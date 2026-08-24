@@ -325,7 +325,8 @@
               <div class="field full"><label>Por dónde se manda</label>
                 <select id="cmpCanal">
                   <option value="prueba"${borrador.canal === 'prueba' ? ' selected' : ''}>Prueba · registra todo pero NO manda</option>
-                  <option value="whatsapp"${borrador.canal === 'whatsapp' ? ' selected' : ''}>WhatsApp · manda de verdad</option>
+                  <option value="whatsapp"${borrador.canal === 'whatsapp' ? ' selected' : ''}>WhatsApp · lo manda el programa</option>
+                  <option value="manual"${borrador.canal === 'manual' ? ' selected' : ''}>A mano · te abre el WhatsApp y lo mandás vos</option>
                 </select>
               </div>
             </div>
@@ -516,7 +517,9 @@
           <button class="btn-ghost cmp-back" id="cmpBack">← Campañas</button>
           <h1>${esc(c.nombre)}</h1>
           <div class="cmp-sub">${chipCampana(c.estado)}
-            ${c.canal === 'prueba' ? chip('Modo prueba · no manda', '#f59e42') : chip('Manda de verdad', '#3ecf8e')}
+            ${c.canal === 'prueba' ? chip('Modo prueba · no manda', '#f59e42')
+              : c.canal === 'manual' ? chip('A mano · la mandás vos', '#7c5cff')
+              : chip('La manda el programa', '#3ecf8e')}
             <span class="cell-dim">Creada ${fmtDateTime(c.creada_en)}</span>
             ${c.programada_para ? `<span class="cell-dim">· arranca ${fmtDateTime(c.programada_para)}</span>` : ''}
           </div>
@@ -527,6 +530,7 @@
           <button class="btn-secondary" id="cmpExportar">${icon('download', 15)} Exportar</button>
         </div>
       </div>
+      ${c.canal === 'manual' ? `<div class="cmp-nota">${icon('alert', 15)} Esta campaña la mandás vos: tocá <strong>Mandar</strong> en cada fila, se abre el WhatsApp con el texto listo y queda anotado solo. El programa no toca esta lista.</div>` : ''}
       ${c.motivo_pausa ? `<div class="cmp-nota cmp-nota-warn">${icon('alert', 15)} Se pausó sola: ${esc(c.motivo_pausa)}</div>` : ''}
 
       <div class="kpi-grid">
@@ -547,7 +551,7 @@
         <button class="tab${tabDetalle === 'excluidos' ? ' active' : ''}" data-tab="excluidos">Excluidos (${num(r.suprimido)})</button>
         <button class="tab${tabDetalle === 'mensaje' ? ' active' : ''}" data-tab="mensaje">Mensaje</button>
       </div>
-      <div id="cmpTab">${tabDetalle === 'mensaje' ? tabMensaje(c) : tablaDestinatarios(filas, tabDetalle === 'excluidos')}</div>`;
+      <div id="cmpTab">${tabDetalle === 'mensaje' ? tabMensaje(c) : tablaDestinatarios(filas, tabDetalle === 'excluidos', c)}</div>`;
 
     document.getElementById('cmpBack').onclick = () => { pantalla = 'lista'; render(host); };
     host.querySelectorAll('[data-tab]').forEach(b => {
@@ -558,6 +562,32 @@
     const br = document.getElementById('cmpReanudar');
     if (br) br.onclick = async () => { await CAMP.actualizar(c.id, { estado: 'programada', motivo_pausa: null }); toast('Campaña reanudada', 'ok'); render(host); };
     document.getElementById('cmpExportar').onclick = () => exportar(c);
+
+    // Campaña a mano: cada botón abre el WhatsApp con el texto ya escrito y
+    // deja el envío anotado, igual que si lo hubiera mandado el programa.
+    host.querySelectorAll('.cmp-wa').forEach(b => {
+      b.onclick = async () => {
+        const fila = filas.find(f => String(f.id) === b.dataset.id);
+        if (!fila) return;
+        const p = DB.getProspecto(fila.prospecto_id);
+        const texto = CAMP.reemplazarVariables(c.criterio.mensaje || '', p || {}, c.criterio);
+
+        // La ventana se abre ANTES de tocar la base: si se abre después de un
+        // await, el navegador la bloquea por considerarla una ventana automática.
+        window.open('https://wa.me/' + fila.telefono + '?text=' + encodeURIComponent(texto), '_blank');
+
+        b.disabled = true;
+        b.textContent = 'Anotando…';
+        try {
+          await CAMP.marcarManual(fila.id, fila.prospecto_id, texto, c.nombre);
+          toast('Mandado y anotado', 'ok');
+          render(host);
+        } catch (e) {
+          b.disabled = false;
+          toast('Se abrió el WhatsApp pero no se pudo anotar: ' + e.message, 'error');
+        }
+      };
+    });
   }
 
   // Los excluidos por teléfono inválido se guardan con una marca interna
@@ -572,15 +602,18 @@
     return p ? (p.empresa || p.nombre || prospectoId) : prospectoId;
   }
 
-  function tablaDestinatarios(filas, esExcluidos) {
+  function tablaDestinatarios(filas, esExcluidos, campana) {
     if (!filas.length) {
       return `<div class="empty"><h3>${esExcluidos ? 'No quedó nadie afuera' : 'Sin destinatarios'}</h3>
         <p>${esExcluidos ? 'Todos los prospectos que entraban en los filtros pasaron los controles.' : 'Esta campaña no tiene a nadie cargado.'}</p></div>`;
     }
+    const aMano = campana && campana.canal === 'manual' && !esExcluidos;
+
     return `<div class="table-wrap"><table>
       <thead><tr>
         <th>Prospecto</th><th>Teléfono</th><th>Estado</th>
         <th>${esExcluidos ? 'Por qué quedó afuera' : 'Detalle'}</th><th>Enviado</th>
+        ${aMano ? '<th></th>' : ''}
       </tr></thead><tbody>
       ${filas.map(f => {
         const e = CAMP.ESTADOS_DEST[f.estado] || { label: f.estado, color: '#8b94a8' };
@@ -590,6 +623,9 @@
           <td>${chip(e.label, e.color)}</td>
           <td class="cell-dim">${esc(f.motivo || '—')}</td>
           <td class="cell-dim">${f.enviado_en ? fmtDateTime(f.enviado_en) : '—'}</td>
+          ${aMano ? `<td class="row-actions">${f.estado === 'pendiente'
+            ? `<button class="btn-primary cmp-wa" data-id="${f.id}" data-prospecto="${esc(f.prospecto_id)}">${icon('whatsapp', 15)} Mandar</button>`
+            : '<span class="cell-dim">hecho</span>'}</td>` : ''}
         </tr>`;
       }).join('')}
     </tbody></table>

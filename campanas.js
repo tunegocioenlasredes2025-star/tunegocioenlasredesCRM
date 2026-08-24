@@ -468,6 +468,23 @@
     return insertadas;
   }
 
+  /* Campaña "a mano": el CRM arma la lista y el texto, pero el mensaje lo
+     manda una persona desde su propio WhatsApp. Se anota igual que si lo
+     hubiera mandado el motor, así el prospecto queda contactado y nadie lo
+     vuelve a tocar. */
+  async function marcarManual(destinatarioId, prospectoId, texto, nombreCampana) {
+    await rpc('campana_marcar_resultado', {
+      p_destinatario: destinatarioId,
+      p_estado: 'enviado',
+      p_cuerpo: texto,
+    });
+    await rpc('prospecto_registrar_contacto', {
+      p_prospecto: prospectoId,
+      p_canal: 'WhatsApp',
+      p_texto: 'Campaña (a mano): ' + (nombreCampana || ''),
+    });
+  }
+
   /* ---------- Chequeo de instalación ---------- */
 
   async function tablasListas() {
@@ -482,7 +499,7 @@
     listar, obtener, crear, actualizar, eliminar, resumen, resumenTodas,
     destinatarios,
     plantillas, guardarPlantilla, archivarPlantilla,
-    supresiones, suprimir,
+    supresiones, suprimir, marcarManual,
     reemplazarVariables, limpiar, variablesDe, faltantes, textoPlano,
     armarSegmento, confirmar,
   };
