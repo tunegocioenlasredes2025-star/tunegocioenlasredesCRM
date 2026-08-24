@@ -71,7 +71,7 @@
   // El motor de envío todavía no está conectado. Mejor decirlo en pantalla
   // que dejar que alguien confirme una campaña creyendo que ya sale.
   function avisoMotor() {
-    return `<div class="cmp-nota">${icon('alert', 15)} El motor de envío todavía no está conectado: las campañas se arman y quedan listas, pero no se manda ningún mensaje.</div>`;
+    return `<div class="cmp-nota">${icon('alert', 15)} Los mensajes los manda el Enviador, que corre en la PC (<code>C:\TNR\Enviador</code>). Si esa ventana está cerrada, la campaña queda esperando.</div>`;
   }
 
   /* ============================================================
@@ -322,6 +322,12 @@
                 <input type="time" id="cmpHasta" value="${esc(borrador.ventana_hasta)}" /></div>
               <div class="field full"><label>Arrancar el día (vacío = apenas se confirme)</label>
                 <input type="datetime-local" id="cmpFecha" value="${esc(borrador.programada_para)}" /></div>
+              <div class="field full"><label>Por dónde se manda</label>
+                <select id="cmpCanal">
+                  <option value="prueba"${borrador.canal === 'prueba' ? ' selected' : ''}>Prueba · registra todo pero NO manda</option>
+                  <option value="whatsapp"${borrador.canal === 'whatsapp' ? ' selected' : ''}>WhatsApp · manda de verdad</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -344,7 +350,7 @@
       };
     });
     document.getElementById('cmpNombre').oninput = e => { borrador.nombre = e.target.value; };
-    ['cmpCupo:cupo_diario', 'cmpIntervalo:intervalo_seg', 'cmpDesde:ventana_desde', 'cmpHasta:ventana_hasta', 'cmpFecha:programada_para']
+    ['cmpCupo:cupo_diario', 'cmpIntervalo:intervalo_seg', 'cmpDesde:ventana_desde', 'cmpHasta:ventana_hasta', 'cmpFecha:programada_para', 'cmpCanal:canal']
       .forEach(par => {
         const [id, campo] = par.split(':');
         const el = document.getElementById(id);
@@ -446,8 +452,10 @@
     const n = segmento.incluidos.length;
     const dias = Math.ceil(n / Math.max(Number(borrador.cupo_diario) || 1, 1));
     confirmDialog('Confirmar campaña',
-      `Se le va a mandar el mensaje a ${num(n)} personas, de a ${num(borrador.cupo_diario)} por día (${dias} ${dias === 1 ? 'día' : 'días'}). ` +
-      `Otras ${num(segmento.excluidos.length)} quedan afuera. Todavía no se manda nada: queda lista esperando el motor de envío.`,
+      (borrador.canal === 'prueba'
+        ? `MODO PRUEBA: no se manda ningún mensaje. Se registra todo como si se hubiera mandado, para verificar que funcione. Serían ${num(n)} personas.`
+        : `Se le va a mandar el mensaje DE VERDAD a ${num(n)} ${n === 1 ? 'persona' : 'personas'}, de a ${num(borrador.cupo_diario)} por día (${dias} ${dias === 1 ? 'día' : 'días'}). ` +
+          `Otras ${num(segmento.excluidos.length)} quedan afuera. Empieza cuando el Enviador esté corriendo en la PC.`),
       'Confirmar', guardarCampana);
   }
 
@@ -508,6 +516,7 @@
           <button class="btn-ghost cmp-back" id="cmpBack">← Campañas</button>
           <h1>${esc(c.nombre)}</h1>
           <div class="cmp-sub">${chipCampana(c.estado)}
+            ${c.canal === 'prueba' ? chip('Modo prueba · no manda', '#f59e42') : chip('Manda de verdad', '#3ecf8e')}
             <span class="cell-dim">Creada ${fmtDateTime(c.creada_en)}</span>
             ${c.programada_para ? `<span class="cell-dim">· arranca ${fmtDateTime(c.programada_para)}</span>` : ''}
           </div>
