@@ -226,11 +226,24 @@
 
   /* ---------- Mensajes ---------- */
 
+  // Si una variable queda vacía, el texto no puede terminar en "Hola , somos
+  // de TNR": se juntan los espacios y se pega la puntuación que quedó suelta.
+  // La misma limpieza está en el motor de envío, así lo que se ve en la vista
+  // previa es exactamente lo que le llega a la persona.
+  function limpiar(texto) {
+    return String(texto || '')
+      .replace(/\(\s*\)/g, '')          // parentesis que quedaron vacios
+      .replace(/[ 	]{2,}/g, ' ')        // espacios de mas
+      .replace(/[ 	]+([,.;:!?])/g, '$1') // puntuacion que quedo suelta
+      .trim();
+  }
+
   function reemplazarVariables(texto, prospecto) {
-    return String(texto || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (todo, clave) => {
+    const resuelto = String(texto || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (todo, clave) => {
       const v = VARIABLES.find(x => x.id === clave);
       return v ? (v.de(prospecto) || '') : todo;
     });
+    return limpiar(resuelto);
   }
 
   // Qué variables usa un texto, y cuáles de esas le faltan al prospecto.
@@ -393,7 +406,7 @@
     destinatarios,
     plantillas, guardarPlantilla, archivarPlantilla,
     supresiones, suprimir,
-    reemplazarVariables, variablesDe, faltantes, textoPlano,
+    reemplazarVariables, limpiar, variablesDe, faltantes, textoPlano,
     armarSegmento, confirmar,
   };
 })();
