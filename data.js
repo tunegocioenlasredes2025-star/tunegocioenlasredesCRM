@@ -70,6 +70,28 @@
     'Perdido': 'No funcionó',
   };
 
+  // Probabilidad de cierre por etapa. La fija la ETAPA, no la intuición de
+  // quien carga: así el pipeline ponderado significa lo mismo para los tres.
+  const PROB_ETAPA = {
+    'Prospecto': 0,
+    'Contactado por mail': 2, 'Contactado por wsp': 2,
+    'Contactado por ig': 2,   'Contactado por mail+wsp': 3,
+    'Seguimiento': 15,
+    'Demo agendada': 30,
+    'Demo enviada': 45,
+    'No funcionó': 0,
+  };
+
+  // Lista CERRADA a propósito: con texto libre nadie puede analizar por qué
+  // se pierde. A los 60 días esto contesta solo dónde se cae el embudo.
+  const MOTIVOS_PERDIDA = [
+    'Precio', 'Timing / no era el momento', 'Eligió competidor', 'No había presupuesto',
+    'No era el decisor', 'No contestó nunca más', 'No calificaba', 'Lo hace in-house',
+  ];
+
+  // Las dos marcas de la alianza. Cada prospecto pertenece a una sola.
+  const MARCAS = ['TNR', 'Secure Growing'];
+
   // Canales por los que ya se contactó a un prospecto (se guardan en p.canalesContacto).
   const CANALES_CONTACTO = ['Mail', 'WhatsApp', 'Instagram'];
 
@@ -465,6 +487,11 @@
       maps: '', horarios: '', puntuacion: '', reseñas: '',
       canalesContacto: [],
       proximaAccion: '', fechaSeguimiento: '', responsable: '', historial: [],
+      // Alianza con Secure Growing: separa a qué marca pertenece la oportunidad.
+      marca: 'TNR',
+      // Sin valor no hay pipeline ponderado, y sin motivo cerrado no se sabe
+      // por qué se pierde.
+      valorEstimado: 0, motivoPerdida: '',
     }, d);
     if (!p.historial.length) p.historial.push({ tipo: 'Nota', texto: 'Prospecto creado', fecha: nowISO() });
     load().prospectos.unshift(p);
@@ -1060,11 +1087,44 @@
   }
 
   /* ---------- API pública ---------- */
+  /* ============================================================
+     PIPELINE — el número que dice cuánto vamos a facturar
+     ============================================================ */
+  const estadoVigente = (e) => ESTADOS_LEGACY[e] || e || 'Prospecto';
+  const probDe = (e) => PROB_ETAPA[estadoVigente(e)] || 0;
+
+  const ESTADOS_CERRADOS = ['No funcionó'];
+  const prospectosAbiertos = () =>
+    getProspectos().filter(p => ESTADOS_CERRADOS.indexOf(estadoVigente(p.estado)) === -1);
+
+  function pipelinePonderado(marca) {
+    return prospectosAbiertos()
+      .filter(p => !marca || (p.marca || 'TNR') === marca)
+      .reduce((s, p) => s + (Number(p.valorEstimado) || 0) * probDe(p.estado) / 100, 0);
+  }
+
+  // Lista de la vergüenza: prospectos vivos sin próxima acción agendada.
+  // Debería tender a cero. Sin próximo paso, el prospecto está muerto.
+  const sinProximoPaso = () =>
+    prospectosAbiertos().filter(p => !String(p.proximaAccion || '').trim() || !p.fechaSeguimiento);
+
+  function estancados(dias) {
+    const limite = Date.now() - (dias || 10) * 86400000;
+    return prospectosAbiertos().filter(p => {
+      const h = p.historial || [];
+      if (!h.length) return true;
+      const t = h.map(x => new Date(x.fecha).getTime()).filter(n => !isNaN(n));
+      return !t.length || Math.max.apply(null, t) < limite;
+    });
+  }
+
   window.DB = {
     METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, ESTADO_DESCARTADA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF, CANALES_CONTACTO,
     TIPOS_PROSPECTO, TIPO_FERRETERIA, TIPO_PAUTA, SUBTIPOS, subtipoDe, migrarProspectos, sincronizarTodo,
     CANALES, canalColor: (id) => (CANALES.find(c => c.id === id) || {}).color || '#8b94a8',
     clasificarServicios, prioridadDe, migrarServicios,
+    PROB_ETAPA, MOTIVOS_PERDIDA, MARCAS,
+    estadoVigente, probDe, prospectosAbiertos, pipelinePonderado, sinProximoPaso, estancados,
     CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
     catEvento: (id) => CATEGORIAS_EVENTO.find(c => c.id === id) || CATEGORIAS_EVENTO[0],
     getEventos, getEvento, crearEvento, actualizarEvento, eliminarEvento,

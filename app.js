@@ -510,6 +510,10 @@
         ${sel('subtipo', 'Rubro (si es del canal ferretero)', ['', ...DB.SUBTIPOS])}
         ${sel('metodoContacto', 'Método de contacto', ['', ...DB.METODOS_CONTACTO])}
         ${sel('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id))}
+        ${sel('marca', 'Marca', DB.MARCAS)}
+        <div class="field"><label>Valor estimado <span class="lbl-hint">($ por mes)</span></label>
+        <input type="number" name="valorEstimado" min="0" step="10000" inputmode="numeric" value="${esc(p.valorEstimado || '')}" /></div>
+        ${sel('motivoPerdida', 'Motivo de pérdida', ['', ...DB.MOTIVOS_PERDIDA])}
         ${sel('prioridad', 'Prioridad (A = más cerca de la base)', ['', ...DB.PRIORIDADES])}
         ${f('gancho', 'Gancho de venta', 'text', true)}
         <div class="field"><label>Fecha de seguimiento</label><input type="date" name="fechaSeguimiento" value="${esc(p.fechaSeguimiento || '')}" /></div>
@@ -738,7 +742,28 @@
     ];
     let falta = 0, total = 0; const motivos = [];
     reglas.forEach(r => { total += r.peso; if (!r.ok) { falta += r.peso; motivos.push(r.falta); } });
-    return { score: total ? Math.round(falta / total * 100) : 0, motivos, servicio: servicioRecomendado(p), fecha: DB.nowISO() };
+    // El score era falta/total: medía SÓLO lo que al negocio le falta, así que
+    // ponía primeros a los que menos pueden pagar. Ahora es
+    // necesidad × capacidad de pago × acceso al decisor.
+    const necesidad = total ? (falta / total) * 10 : 0;
+
+    // Capacidad de pago: las reseñas de Google son el mejor proxy de volumen
+    // de clientes que tenemos sin preguntarle nada al negocio.
+    const res = parseInt(String(p.reseñas || p.resenas || 0).replace(/\D/g, ''), 10) || 0;
+    const punt = parseFloat(String(p.puntuacion || '').replace(',', '.')) || 0;
+    let capacidad = res >= 150 ? 10 : res >= 80 ? 8.5 : res >= 40 ? 7 : res >= 15 ? 5.5 : res >= 5 ? 4 : 2.5;
+    if (punt >= 4.5) capacidad = Math.min(10, capacidad + 1);   // reputación = sostiene precio
+    if (has.web) capacidad = Math.min(10, capacidad + 0.5);     // ya invirtió antes en digital
+
+    // Acceso al decisor: en un comercio, el dueño está del otro lado del WhatsApp.
+    const acceso = has.wa ? 9 : (has.ig || has.email) ? 6 : 3;
+
+    const score = Math.max(0, Math.min(100, Math.round(necesidad * capacidad * acceso / 10)));
+    return {
+      score,
+      detalle: { necesidad: +necesidad.toFixed(1), capacidad: +capacidad.toFixed(1), acceso },
+      motivos, servicio: servicioRecomendado(p), fecha: DB.nowISO(),
+    };
   }
 
   function renderIaBox(p) {
@@ -1827,26 +1852,15 @@
      lo tocó. La aplicación inicial la hace un script en el <head>, antes
      de pintar, para que no haya parpadeo al abrir.
      ============================================================ */
-  const TEMAS = { azul: '#0b2240', oscuro: '#0a0a0d' };
-  function temaActual() {
-    try { return localStorage.getItem('tnr_tema') || 'azul'; } catch (e) { return 'azul'; }
-  }
-  function aplicarTema(id) {
-    if (!TEMAS[id]) id = 'azul';
-    if (id === 'azul') document.documentElement.removeAttribute('data-tema');
-    else document.documentElement.setAttribute('data-tema', id);
-    try { localStorage.setItem('tnr_tema', id); } catch (e) {}
-    // La barra del navegador en el celular también tiene que acompañar.
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', TEMAS[id]);
-    $$('#temaPick button').forEach(b => b.classList.toggle('on', b.dataset.tema === id));
-  }
+  // Se sacó el selector: el CRM tiene un solo tema, el azul de TNR.
+  // El CSS del tema oscuro sigue en styles.css bajo [data-tema="oscuro"];
+  // para reponer la opción hay que volver a poner el bloque .tema-pick en
+  // index.html y engancharle un click que setee ese atributo.
+  const AZUL_TNR = '#0b2240';
   function initTema() {
-    aplicarTema(temaActual());
-    $$('#temaPick button').forEach(b => b.onclick = () => {
-      aplicarTema(b.dataset.tema);
-      toast(b.dataset.tema === 'oscuro' ? 'Tema oscuro' : 'Tema azul TNR', 'ok');
-    });
+    document.documentElement.removeAttribute('data-tema');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', AZUL_TNR);
   }
 
   /* ---------- Quién está usando el CRM ---------- */

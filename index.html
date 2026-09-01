@@ -2,9 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <!-- El tema se aplica antes de que el navegador pinte nada. Si esto fuera
-       más abajo, al abrir en oscuro se vería un parpadeo azul. -->
-  <script>try{var t=localStorage.getItem('tnr_tema');if(t==='oscuro')document.documentElement.setAttribute('data-tema',t);}catch(e){}</script>
+  <!-- Se sacó el selector de tema. Esto limpia la preferencia guardada: sin
+       esta línea, quien había elegido "oscuro" quedaba encerrado ahí para
+       siempre, porque ya no queda ningún botón para volver. -->
+  <script>try{localStorage.removeItem('tnr_tema');}catch(e){}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>TNR · Sistema Operativo</title>
   <!-- El icono de la pestaña. Antes apuntaba a logo.png, que mide 1080x1350 y
@@ -49,13 +50,18 @@
 
         <div class="nav-group">Comercial</div>
         <button class="nav-item" data-view="prospectos"><span class="nav-ic" data-ic="target"></span> Prospección</button>
-        <button class="nav-item" data-view="campanas"><span class="nav-ic" data-ic="send"></span> Campañas</button>
         <button class="nav-item" data-view="clientes"><span class="nav-ic" data-ic="users"></span> Clientes</button>
 
         <div class="nav-group">Medición</div>
         <button class="nav-item" data-view="productividad"><span class="nav-ic" data-ic="bar-chart"></span> Productividad</button>
-        <button class="nav-item" data-view="metas"><span class="nav-ic" data-ic="trophy"></span> Metas del mes</button>
         <button class="nav-item" data-view="dashboard"><span class="nav-ic" data-ic="dashboard"></span> Panel de prospectos</button>
+
+        <!-- Campañas y Metas del mes salieron del menú porque no se usaban y
+             recargaban la navegación. El código NO se borró: campanas.js,
+             campanas-vista.js y las vistas de metas siguen enteros y funcionando.
+             Para devolverlos, alcanza con reponer estos dos botones:
+             <button class="nav-item" data-view="campanas"><span class="nav-ic" data-ic="send"></span> Campañas</button>
+             <button class="nav-item" data-view="metas"><span class="nav-ic" data-ic="trophy"></span> Metas del mes</button> -->
 
         <div class="nav-group">Configuración</div>
         <button class="nav-item" data-view="rutinas"><span class="nav-ic" data-ic="repeat"></span> Rutinas</button>
@@ -73,11 +79,8 @@
         <button class="icon-btn" id="btnSalir" title="Cerrar sesión" data-ic="log-out"></button>
       </div>
 
-      <div class="tema-pick" id="temaPick">
-        <span>Tema</span>
-        <button data-tema="azul" title="Azul TNR" aria-label="Tema azul"><i></i></button>
-        <button data-tema="oscuro" title="Oscuro" aria-label="Tema oscuro"><i></i></button>
-      </div>
+      <!-- El selector de tema salió: una sola identidad, menos ruido en la barra.
+           El CSS de ambos temas sigue en styles.css. -->
 
       <div class="sidebar-foot">
         <button class="btn-ghost" id="btnExport" title="Descargar copia de seguridad"><span data-ic="download"></span> Backup</button>
