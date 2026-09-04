@@ -392,6 +392,8 @@
         </div>
       </div>
 
+      ${panelDelDia()}
+
       <div class="filters">
         <div class="filter-search"><span class="search-ic" data-ic="search"></span><input type="search" id="pSearch" placeholder="Buscar nombre, dirección, teléfono…" value="${esc(pFilters.q)}" autocomplete="off" /></div>
         ${tipoFilter(pFilters.tipo)}
@@ -624,7 +626,24 @@
     if (!p) return;
     const link = (val, href, label) => val ? `<a class="text-link" target="_blank" href="${href}">${label || val}</a>` : '<span class="cell-dim">—</span>';
     const fila = (l, v) => `<div class="field"><label>${l}</label><div style="font-size:13px;padding:4px 0">${v}</div></div>`;
+    // Si ya contestó, lo único que importa es llamarlo YA. Llamar apenas
+    // responde es lo que más sube el cierre: la conversación sigue caliente.
+    const contesto = DB.estadoVigente(p.estado) === 'Seguimiento';
+    const telLlamar = String(p.telefono || p.whatsapp || '').replace(/[^\d+]/g, '');
+
     openModal(p.empresa || p.nombre || 'Prospecto', `
+      ${contesto ? `<div class="banner-llamar" style="border:1px solid var(--border-2);
+        border-left:3px solid #3ecf8e;background:var(--panel);padding:13px 16px;border-radius:8px;
+        margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <strong style="font-size:13.5px;display:block">Contestó. Llamalo ahora.</strong>
+          <span class="muted" style="font-size:12.5px">Cinco minutos, sin vender: sólo para dejar
+          día y hora. Cuanto más tarde llames, más se enfría.</span>
+        </div>
+        ${telLlamar ? `<a class="btn-primary" style="padding:8px 14px" href="tel:${esc(telLlamar)}"
+          onclick="TNR.genMensaje('${p.id}','Llamada')">Llamar</a>` : ''}
+        <button class="btn-secondary" onclick="TNR.genMensaje('${p.id}','Llamada')">Ver el guion</button>
+      </div>` : ''}
       <div class="flex gap-wrap" style="justify-content:space-between;margin-bottom:16px">
         <div>${estadoChip(p.estado)} ${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : ''}</div>
         <div class="pill-row">
@@ -851,7 +870,8 @@
   // Dato concreto y verificable del negocio: es lo que hace que no parezca plantilla.
   function dsGancho(p) {
     const rv = parseInt(p['reseñas'] || p.resenas || 0, 10) || 0;
-    const pu = String(p.puntuacion || '').replace(',', '.');
+    // Acá se muestra, no se calcula: en Argentina el decimal va con coma.
+    const pu = String(p.puntuacion || '').replace('.', ',');
     const tieneIG = p.instagram && !/^no|no encontrado/i.test(String(p.instagram));
     const tieneWeb = p.sitioWeb && !/^no|no tiene/i.test(String(p.sitioWeb));
     const out = [];
@@ -862,6 +882,55 @@
     return out;
   }
 
+  /* ============================================================
+     META DEL DIA
+     15 contactos por dia entre los tres. El numero tiene que estar a
+     la vista: una meta que no se ve no se cumple.
+     ============================================================ */
+  const META_DIARIA = 15;
+
+  function contactadosHoy() {
+    const hoy = todayStr();
+    let n = 0;
+    DB.getProspectos().forEach(p => {
+      (p.historial || []).forEach(h => {
+        if (h.tipo === 'Contacto' && String(h.fecha || '').slice(0, 10) === hoy) n++;
+      });
+    });
+    return n;
+  }
+
+  function panelDelDia() {
+    const hechos = contactadosHoy();
+    const pct = Math.min(100, hechos / META_DIARIA * 100);
+    const listo = hechos >= META_DIARIA;
+    const respondieron = DB.getProspectos()
+      .filter(p => DB.estadoVigente(p.estado) === 'Seguimiento').length;
+    const col = listo ? '#3ecf8e' : hechos ? '#f5c451' : '#8b94a8';
+
+    return `<div style="border:1px solid var(--border);background:var(--panel);border-radius:10px;
+      padding:14px 16px;margin-bottom:14px;display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:210px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
+          <strong style="font-size:13.5px">Contactos de hoy</strong>
+          <span style="font-size:13px;color:${col}">
+            <strong style="font-size:17px">${hechos}</strong> / ${META_DIARIA}</span>
+        </div>
+        <div style="height:6px;background:var(--panel-2,#1a1f28);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:4px;transition:width .4s"></div>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:7px">
+          ${listo ? 'Meta del día cumplida.'
+                  : `Faltan ${META_DIARIA - hechos}. Son ${Math.ceil((META_DIARIA - hechos) / 3)} por cabeza.`}
+        </div>
+      </div>
+      ${respondieron ? `<div style="border-left:1px solid var(--border);padding-left:18px">
+        <div style="font-size:22px;font-weight:700;color:#3ecf8e;line-height:1">${respondieron}</div>
+        <div class="muted" style="font-size:12px;margin-top:4px">esperando<br>tu llamada</div>
+      </div>` : ''}
+    </div>`;
+  }
+
   function mensajeWhatsApp(p) {
     const id = p.id || (p.empresa || '') + (p.ciudad || '');
     const emp = p.empresa || p.nombre || '';
@@ -869,14 +938,19 @@
     const tieneWeb = p.sitioWeb && !/^no|no tiene/i.test(String(p.sitioWeb));
     const tieneIG = p.instagram && !/^no|no encontrado/i.test(String(p.instagram));
     const datos = dsGancho(p);
-    const dato = datos.length ? pick(datos, id, 'd') : '';
+    // Las reseñas son la prueba más fuerte de que miraste el negocio de verdad,
+    // así que cuando hay muchas se usa esa y no una al azar.
+    const conReseñas = datos.find(d => /reseñas/.test(d));
+    const dato = conReseñas || (datos.length ? pick(datos, id, 'd') : '');
 
     const saludos = ['Hola', 'Buenas', 'Hola, ¿qué tal?', 'Buen día', '¿Cómo va?'];
+    // Cortas y en primera persona. "Somos una agencia que ofrece servicios de"
+    // es la frase que delata el mensaje masivo.
     const presenta = [
-      'Soy Mateo, de Tu Negocio En Las Redes, una agencia acá de zona oeste',
-      'Te escribo de Tu Negocio En Las Redes, somos una agencia de zona oeste',
-      'Soy Mateo, trabajo con negocios de la zona haciendo webs y redes',
-      'Te contacto de Tu Negocio En Las Redes, agencia de la zona',
+      'soy Mateo, de Tu Negocio En Las Redes, una agencia acá de zona oeste',
+      'te escribo de Tu Negocio En Las Redes, somos de acá de la zona',
+      'soy Mateo, hago webs y redes para negocios de por acá',
+      'te contacto de Tu Negocio En Las Redes, agencia de zona oeste',
     ];
     // El medio del mensaje cambia según lo que le falta al negocio, que es el motivo real del contacto.
     let cuerpos;
@@ -895,12 +969,14 @@
       `Miré el sitio de ${emp} y hay cosas que hoy le estarían costando consultas.`,
     ];
 
+    // El cierre pide algo chico y deja una salida. Pedir una reunión de entrada
+    // sube la fricción justo cuando todavía no confían en vos.
     const cierres = [
-      '¿Te puedo mandar un ejemplo de cómo quedaría? Sin compromiso.',
-      'Si querés te muestro una demo hecha para el negocio y decidís con eso a la vista.',
-      '¿Te interesa que te pase una idea concreta? Son 2 minutos de lectura.',
-      'Te puedo armar una muestra gratis para que veas cómo se vería. ¿Te sirve?',
-      '¿Lo charlamos? Si no es el momento, no hay drama.',
+      '¿Te mando un ejemplo de cómo quedaría? Sin compromiso.',
+      '¿Querés que te arme una muestra y la mirás? No te cuesta nada.',
+      '¿Te tiro una idea concreta? Son dos minutos de lectura.',
+      '¿Te sirve que te pase una muestra? Si no va, me lo decís y listo.',
+      '¿Lo vemos? Y si no es el momento, no hay drama.',
     ];
 
     const saludo = pick(saludos, id, 's');
@@ -909,7 +985,89 @@
     const cierre = pick(cierres, id, 'f');
     const linea = dato ? ` ${dato.charAt(0).toUpperCase() + dato.slice(1)}.` : '';
 
-    return `${saludo}! ${quien}.\n\n${cuerpo}${linea}\n\n${cierre}`;
+    // Todo en un solo bloque, sin renglones en blanco. Un mensaje partido en
+    // tres párrafos con espacios en el medio se lee como plantilla enviada a
+    // mil personas; la gente en WhatsApp escribe de corrido.
+    // "Hola, ¿qué tal?" ya cierra solo: agregarle "!" daba "¿qué tal?!".
+    const abre = /[?!]$/.test(saludo) ? saludo : saludo + '!';
+
+    return `${abre} ${quien}. ${cuerpo}${linea} ${cierre}`;
+  }
+
+  /* ============================================================
+     GUION DE LLAMADA DE 5 MINUTOS
+     Se usa cuando el prospecto YA respondió algo. No es cold call:
+     el objetivo no es vender, es poner día y hora para la demo.
+     Llamar apenas contesta es lo que más sube la tasa de cierre,
+     porque la conversación sigue caliente.
+     ============================================================ */
+  function guionLlamada(p) {
+    const emp = p.empresa || p.nombre || 'el negocio';
+    // En una llamada se saluda por el nombre de quien atiende, no por el del
+    // negocio. Si sólo tenemos la empresa, mejor arrancar sin nombre que decir
+    // "Hola Peluquería Nadia".
+    const pila = String(p.nombre || '').trim().split(/\s+/)[0] || '';
+    const esPersona = pila && !/^(el|la|los|las)$/i.test(pila) && p.nombre !== p.empresa;
+    const nom = esPersona ? pila : '';
+    const hola = nom ? 'Hola ' + nom : 'Hola, buenas';
+    const chau = nom ? 'Perfecto ' + nom : 'Perfecto';
+    const datos = dsGancho(p);
+    const dato = datos.length ? datos[0] : '';
+    // Los motivos vienen como "No tiene página web" / "Sin email de contacto".
+    // Hay que pasarlos a plural y a tercera persona o queda "y vi no tiene web".
+    const motivo = (p.analisis && p.analisis.motivos && p.analisis.motivos[0]) || '';
+    const falta = !motivo ? 'les falta presencia digital'
+      : /^no tiene/i.test(motivo) ? 'no tienen' + motivo.replace(/^no tiene/i, '')
+      : /^sin /i.test(motivo) ? 'no tienen ' + motivo.replace(/^sin /i, '')
+      : motivo.charAt(0).toLowerCase() + motivo.slice(1);
+
+    return `LLAMADA DE 5 MINUTOS · ${emp}
+Llamalo AHORA, mientras la conversación sigue caliente.
+El objetivo no es vender: es dejar día y hora para la demo.
+
+[0:00] APERTURA — 15 segundos
+"${hola}, soy Mateo de Tu Negocio En Las Redes. Te escribí recién por
+WhatsApp y me contestaste, así que preferí llamarte en vez de seguir tipeando.
+¿Tenés dos minutos o te agarré en mal momento?"
+  → Si está ocupado: "¿Te llamo hoy más tarde o mañana a la mañana?" y CORTÁS.
+    Anotá el horario y llamá exacto a esa hora. No insistas ahora.
+
+[0:15] POR QUÉ LO LLAMÉ — 30 segundos
+"Te cuento en 30 segundos y vos me decís si tiene sentido seguir.
+Estuve mirando el negocio${dato ? ' — ' + dato + ' — ' : ' '}y me llamó que ${falta}."
+
+[0:45] DOS PREGUNTAS, NO MÁS
+  1. "Hoy, ¿cómo te llegan los clientes nuevos?"
+  2. "¿Y quién te contesta los mensajes cuando te escriben?"
+  → Cerrá la boca y escuchá. Anotá TEXTUAL lo que dice:
+    esas palabras son las que van después en la propuesta.
+
+[2:30] PUENTE
+"Mirá, esto se resuelve, pero no por teléfono. Lo que hago es armarte una
+muestra con tu negocio adentro y te la muestro en 15 minutos. La veas y
+decidas lo que decidas, te queda hecha."
+
+[3:00] CERRAR LA AGENDA ← lo único que importa
+"¿Te viene mejor mañana a las ${horaSugerida()} o el jueves a la misma hora?"
+  → SIEMPRE dos opciones concretas. Nunca "¿cuándo podés?".
+  → Confirmá en el momento: "Listo, te lo anoto. Te escribo el día anterior."
+  → "¿Sos vos el que decide esto o hay alguien más?"
+
+[4:30] CIERRE
+"${chau}, quedamos así. Gracias por atenderme."
+
+LO QUE NO SE DICE EN ESTA LLAMADA
+  ✗ El precio          ✗ "Te mando info por mail"
+  ✗ Cuánto tarda       ✗ Nada que reemplace a la reunión
+
+Si te pregunta el precio: "Depende de lo que necesites. Por eso prefiero
+mostrarte la muestra primero y ahí te paso el número exacto."`;
+  }
+
+  // Sugiere un horario razonable para proponer: mañana, en horario comercial.
+  function horaSugerida() {
+    const h = new Date().getHours();
+    return h < 12 ? '15' : h < 17 ? '10' : '11';
   }
 
   function generarMensaje(p, canal) {
@@ -917,6 +1075,10 @@
     const nombre = nombreNat(p);
     const rubro = rubroNat(p);
     const servicio = servicioRecomendado(p);
+
+    // 0) La llamada de 5 minutos es siempre la misma técnica: no depende del
+    //    mensaje que se haya cargado a mano. (Pauta sigue con su propio guion.)
+    if (canal === 'Llamada' && !esPauta(p)) return guionLlamada(p);
 
     // 1) Mensaje propio cargado en el prospecto (campañas: Mundo Ferretero, etc.)
     if (p.mensaje) {
@@ -950,7 +1112,8 @@
       case 'Email':
         return `Asunto: Una idea para ${emp}\n\nHola equipo de ${emp},\n\nSoy [Tu nombre], de ${AGENCIA}. ${intro} ${oferta}\n\n¿Tienen 15 minutos esta semana para que les muestre una propuesta concreta, sin compromiso?\n\nSaludos,\n[Tu nombre] — ${AGENCIA}`;
       case 'Llamada':
-        return `GUION DE LLAMADA\n\nApertura: "Hola, ¿hablo con ${emp}? Te llamo de ${AGENCIA}."\nGancho: "${intro}"\nValor: "${oferta}"\nPregunta: "¿Hoy cómo están consiguiendo clientes nuevos?"\nCierre: "Te propongo una reunión de 15 minutos para mostrarte una idea concreta. ¿Te viene bien mañana?"`;
+        // El guion completo de 5 minutos, con los datos del negocio adentro.
+        return guionLlamada(p);
     }
     return '';
   }
