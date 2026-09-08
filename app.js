@@ -1936,7 +1936,9 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
   $('#hamburger').onclick = () => sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
 
   /* Bottom nav (mobile) — navegación con una mano; reutiliza .nav-item para el estado activo */
-  (function buildBottomNav() {
+  function buildBottomNav() {
+    const vieja = document.querySelector('.bottom-nav');
+    if (vieja) vieja.remove();
     // Lo que se toca todos los días, al alcance del pulgar. El resto, en "Más".
     const items = esSocio() ? [
       { v: 'hoy', ic: 'sun', label: 'Hoy' },
@@ -1958,7 +1960,7 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
       else setView(v);
     });
     if (window.Icons) Icons.paintStatic();
-  })();
+  }
 
   /* ============================================================
      BACKUP / RESTORE
@@ -2154,7 +2156,9 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
     initTema();
     initPWA();
     pintarUsuario();
-    aplicarRol();   // el menú se recorta ANTES del primer dibujo
+    aplicarRol();      // el menú se recorta ANTES del primer dibujo
+    buildBottomNav();  // y la barra del celular se arma recién ahora, que ya
+                       // sabemos quién entró
     DB.onRemoteChange = () => { searchTerm ? renderSearch() : render(); };
     // El socio arranca en Hoy; el vendedor, en sus prospectos, que es lo
     // único que tiene para hacer acá.
