@@ -1283,3 +1283,12 @@ tbody tr:hover .row-actions { opacity: 1; }
 .cmp-emb-final .cmp-emb-n { color: var(--accent); font-size: 15px; }
 .cmp-oferta { font-size: 12.5px; color: var(--text-dim); margin-top: 10px; }
 .cmp-oferta strong { color: var(--text); }
+
+/* Embudo por persona: números en columna, alineados a la derecha para poder
+   compararlos de un vistazo. */
+.tbl-embudo { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.tbl-embudo th, .tbl-embudo td { padding: 7px 10px; border-bottom: 1px solid var(--line, #232a3a); text-align: left; white-space: nowrap; }
+.tbl-embudo th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted, #8b94a8); font-weight: 600; }
+.tbl-embudo .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tbl-embudo tfoot td { border-bottom: 0; border-top: 1px solid var(--line, #232a3a); }
+.tbl-embudo .sub2 { color: var(--muted, #8b94a8); font-size: 11px; }

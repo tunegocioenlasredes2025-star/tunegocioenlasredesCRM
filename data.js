@@ -129,8 +129,10 @@
 
   // Las personas del equipo. `equipo` = tarea compartida: la hace cualquiera de los dos.
   const RESPONSABLES = [
-    { id: 'mateo',    nombre: 'Mateo De Rosa',   corto: 'Mateo' },
-    { id: 'santiago', nombre: 'Santiago Stalla', corto: 'Santiago' },
+    { id: 'mateo',       nombre: 'Mateo De Rosa',    corto: 'Mateo',    rol: 'socio' },
+    { id: 'santiago',    nombre: 'Santiago Stalla',  corto: 'Santiago', rol: 'socio' },
+    { id: 'santiderosa', nombre: 'Santiago De Rosa', corto: 'Santi R.', rol: 'vendedor' },
+    { id: 'bautista',    nombre: 'Bautista Rega',    corto: 'Bauti',    rol: 'vendedor' },
   ];
   const RESP_EQUIPO = { id: 'equipo', nombre: 'Los dos (compartida)', corto: 'Equipo' };
   const responsableDe = (id) => RESPONSABLES.find(r => r.id === id) || (id === 'equipo' ? RESP_EQUIPO : { id: id || '', nombre: id || 'Sin asignar', corto: id || '—' });
@@ -486,7 +488,11 @@
       canal: '', oportunidad: '', gancho: '',
       maps: '', horarios: '', puntuacion: '', reseñas: '',
       canalesContacto: [],
-      proximaAccion: '', fechaSeguimiento: '', responsable: '', historial: [],
+      // El prospecto nace con dueño: el que lo está cargando. Sin esto la base
+      // rechaza el alta de un vendedor, porque sus políticas sólo lo dejan
+      // escribir filas a su nombre. Un socio puede reasignarlo después.
+      proximaAccion: '', fechaSeguimiento: '',
+      responsable: (window.Auth && Auth.usuarioId) || '', historial: [],
       // Alianza con Secure Growing: separa a qué marca pertenece la oportunidad.
       marca: 'TNR',
       // Sin valor no hay pipeline ponderado, y sin motivo cerrado no se sabe

@@ -116,7 +116,31 @@
   /* ============================================================
      ROUTER
      ============================================================ */
+
+  // Un vendedor entra a vender: sus prospectos y su embudo. Clientes, plata,
+  // tareas y proyectos son de los socios. Esto es la pantalla; el candado de
+  // verdad está en las políticas de la base (equipo-setup.sql).
+  const VISTAS_VENDEDOR = ['prospectos', 'dashboard'];
+  const esSocio = () => !!(window.Auth && Auth.esSocio);
+  const puedeVer = (v) => esSocio() || VISTAS_VENDEDOR.includes(v);
+
+  // Saca del menú lo que esa persona no puede abrir, y con eso los títulos
+  // de sección que quedan sin nada abajo.
+  function aplicarRol() {
+    if (esSocio()) return;
+    $$('.nav-item').forEach(b => { if (!puedeVer(b.dataset.view)) b.hidden = true; });
+    $$('.nav-group').forEach(g => {
+      let hay = false;
+      for (let el = g.nextElementSibling; el && !el.classList.contains('nav-group'); el = el.nextElementSibling) {
+        if (el.classList.contains('nav-item') && !el.hidden) { hay = true; break; }
+      }
+      g.hidden = !hay;
+    });
+    if (!puedeVer(current)) current = 'prospectos';
+  }
+
   function setView(v) {
+    if (!puedeVer(v)) v = 'prospectos';
     current = v;
     searchTerm = '';
     $('#globalSearch').value = '';
@@ -125,6 +149,7 @@
     closeSidebar();
   }
   function render() {
+    if (!puedeVer(current)) current = 'prospectos';
     if (searchTerm) return renderSearch();
     // Las pantallas del Sistema Operativo viven en so-vista.js.
     const SO_VIEWS = ['hoy', 'tareas', 'proyectos', 'productividad', 'rutinas', 'avisos', 'agenda'];
@@ -193,6 +218,46 @@
       else pend++;
     }));
 
+    // Embudo por persona. El nombre del responsable se cargó a mano durante
+    // años ("Mateo", "mateo", vacío), asi que primero lo normalizamos al id
+    // del equipo; si no, la misma persona aparece tres veces.
+    const respId = (v) => {
+      const r = String(v || '').trim().toLowerCase();
+      if (!r) return 'sinasignar';
+      const exacto = DB.RESPONSABLES.find(x => x.id === r);
+      if (exacto) return exacto.id;
+      if (r.startsWith('mateo')) return 'mateo';
+      if (r.includes('de rosa') || r.startsWith('santider')) return 'santiderosa';
+      if (r.startsWith('bau')) return 'bautista';
+      if (r.startsWith('santi')) return 'santiago';
+      return 'sinasignar';
+    };
+    const porPersona = {};
+    ps.forEach(p => {
+      const k = respId(p.responsable);
+      const b = porPersona[k] || (porPersona[k] = { total: 0, cont: 0, int: 0, gan: 0 });
+      b.total++;
+      if (p.estado !== 'Prospecto') b.cont++;
+      if (['Interesado', 'Reunión Agendada', 'Demo Enviada', 'Propuesta Enviada'].includes(p.estado)) b.int++;
+      if (p.estado === 'Ganado') b.gan++;
+    });
+    const filasPersona = Object.entries(porPersona)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([id, b]) => {
+        const r = DB.responsableDe(id);
+        const nom = id === 'sinasignar' ? 'Sin asignar' : (r.corto || id);
+        const pctCont = b.total ? Math.round(b.cont / b.total * 100) : 0;
+        const conv = b.cont ? (b.gan / b.cont * 100) : 0;
+        return `<tr>
+          <td>${esc(nom)}</td>
+          <td class="num">${b.total}</td>
+          <td class="num">${b.cont}<span class="sub2"> · ${pctCont}%</span></td>
+          <td class="num">${b.int}</td>
+          <td class="num">${b.gan}</td>
+          <td class="num">${conv >= 10 ? conv.toFixed(0) : conv.toFixed(1)}%</td>
+        </tr>`;
+      }).join('');
+
     // Funnel
     const etapas = [
       { l: 'Prospectos', v: ps.length, c: '#8b94a8' },
@@ -248,7 +313,7 @@
 
       <div class="grid-2" style="margin-bottom:16px">
         <div class="panel">
-          <div class="panel-title">Embudo de ventas</div>
+          <div class="panel-title">Embudo de ventas ${esSocio() ? '<span class="muted" style="font-weight:400;font-size:11px">todo el equipo</span>' : '<span class="muted" style="font-weight:400;font-size:11px">tus prospectos</span>'}</div>
           <div class="funnel">
             ${etapas.map(e => `
               <div class="funnel-row">
@@ -257,6 +322,25 @@
                 <div class="f-val">${e.v}</div>
               </div>`).join('')}
           </div>
+          ${esSocio() && filasPersona ? `
+          <div class="panel-title" style="margin-top:18px">Quién lo trajo</div>
+          <div style="overflow-x:auto">
+            <table class="tbl tbl-embudo">
+              <thead><tr>
+                <th>Persona</th><th class="num">Prospectos</th><th class="num">Contactados</th>
+                <th class="num">Interesados</th><th class="num">Ganados</th><th class="num">Cierre</th>
+              </tr></thead>
+              <tbody>${filasPersona}</tbody>
+              <tfoot><tr>
+                <td><strong>Total</strong></td>
+                <td class="num"><strong>${ps.length}</strong></td>
+                <td class="num"><strong>${contactados}</strong></td>
+                <td class="num"><strong>${interesados}</strong></td>
+                <td class="num"><strong>${ganados}</strong></td>
+                <td class="num"><strong>${contactados ? (ganados / contactados * 100 >= 10 ? (ganados / contactados * 100).toFixed(0) : (ganados / contactados * 100).toFixed(1)) : '0'}%</strong></td>
+              </tr></tfoot>
+            </table>
+          </div>` : ''}
         </div>
         <div class="panel">
           <div class="panel-title">Ingresos <span class="muted" style="font-weight:400;font-size:11px">solo clientes activos</span></div>
@@ -427,6 +511,27 @@
     if (more) more.onclick = () => { pPage++; renderProspectosList(); };
   }
 
+  // Responsable como lista. El vendedor no elige: sus prospectos son suyos y
+  // la base no lo dejaria guardarlos a nombre de otro igual.
+  function selResponsable(p) {
+    const yoId = (window.Auth && Auth.usuarioId) || '';
+    const actual = (p && p.responsable) || yoId;
+    if (!esSocio()) {
+      const yo = DB.responsableDe(yoId);
+      // Se muestra pero no se edita: sus prospectos son suyos, y la base no
+      // lo dejaria guardarlos a nombre de otro aunque cambiara el HTML.
+      return `<div class="field"><label>Responsable</label>
+        <input value="${esc(yo.nombre || yoId)}" readonly />
+        <input type="hidden" name="responsable" value="${esc(yoId)}" /></div>`;
+    }
+    const ops = DB.RESPONSABLES.map(r =>
+      `<option value="${esc(r.id)}"${r.id === actual ? ' selected' : ''}>${esc(r.nombre)}</option>`).join('');
+    return `<div class="field"><label>Responsable</label>
+      <select name="responsable"><option value="">Sin asignar</option>
+      <option value="equipo"${actual === 'equipo' ? ' selected' : ''}>Los dos (compartido)</option>
+      ${ops}</select></div>`;
+  }
+
   function selectFilter(key, label, opts, val) {
     return `<select data-f="${key}" class="${val ? 'on' : ''}"><option value="">${label}: todos</option>${opts.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
   }
@@ -507,7 +612,7 @@
         ${f('sitioWeb', 'Sitio Web')}
         ${f('horarios', 'Horarios')}
         ${f('maps', 'Google Maps')}
-        ${f('responsable', 'Responsable')}
+        ${selResponsable(p)}
         ${sel('tipo', 'Tipo de prospecto', ['', ...DB.TIPOS_PROSPECTO])}
         ${sel('subtipo', 'Rubro (si es del canal ferretero)', ['', ...DB.SUBTIPOS])}
         ${sel('metodoContacto', 'Método de contacto', ['', ...DB.METODOS_CONTACTO])}
@@ -1833,12 +1938,15 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
   /* Bottom nav (mobile) — navegación con una mano; reutiliza .nav-item para el estado activo */
   (function buildBottomNav() {
     // Lo que se toca todos los días, al alcance del pulgar. El resto, en "Más".
-    const items = [
+    const items = esSocio() ? [
       { v: 'hoy', ic: 'sun', label: 'Hoy' },
       { v: 'tareas', ic: 'check-square', label: 'Tareas' },
       { v: 'proyectos', ic: 'folder', label: 'Proyectos' },
       { v: 'prospectos', ic: 'target', label: 'Prospección' },
       { v: '__more', ic: 'menu', label: 'Más' },
+    ] : [
+      { v: 'prospectos', ic: 'target', label: 'Prospección' },
+      { v: 'dashboard', ic: 'dashboard', label: 'Mi embudo' },
     ];
     const nav = document.createElement('nav');
     nav.className = 'bottom-nav';
@@ -2046,8 +2154,11 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
     initTema();
     initPWA();
     pintarUsuario();
+    aplicarRol();   // el menú se recorta ANTES del primer dibujo
     DB.onRemoteChange = () => { searchTerm ? renderSearch() : render(); };
-    setView('hoy'); // render inmediato con datos locales/cacheados
+    // El socio arranca en Hoy; el vendedor, en sus prospectos, que es lo
+    // único que tiene para hacer acá.
+    setView(esSocio() ? 'hoy' : 'prospectos');
     DB.init().then((online) => {
       setCloudStatus(online);
       // Recién ahora, con los datos de la nube abajo, se fabrica el día:

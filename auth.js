@@ -43,11 +43,12 @@
     const mail = String(user.email || '').toLowerCase();
     const mapa = window.TNR_USUARIOS || {};
     const encontrado = mapa[mail];
-    if (encontrado) return { ...encontrado, email: mail };
-    // Alguien logueado que no está en el mapa: entra, pero como "equipo".
-    // Mejor eso que dejarlo afuera por un mail mal escrito en la config.
+    if (encontrado) return { rol: 'vendedor', ...encontrado, email: mail };
+    // Alguien logueado que no está en el mapa entra igual (mejor eso que
+    // dejarlo afuera por un mail mal escrito), pero con el permiso más bajo.
+    // Si le diéramos el de socio, un mail con un typo abriría la caja entera.
     const local = mail.split('@')[0] || 'usuario';
-    return { id: local.replace(/[^a-z0-9]/g, '') || 'usuario', nombre: local, email: mail };
+    return { id: local.replace(/[^a-z0-9]/g, '') || 'usuario', nombre: local, email: mail, rol: 'vendedor' };
   }
 
   async function init() {
@@ -191,5 +192,7 @@
     get perfil() { return perfil; },
     get usuarioId() { return perfil ? perfil.id : ''; },
     get nombre() { return perfil ? perfil.nombre : ''; },
+    get rol() { return perfil ? (perfil.rol || 'vendedor') : ''; },
+    get esSocio() { return !!perfil && perfil.rol === 'socio'; },
   };
 })();

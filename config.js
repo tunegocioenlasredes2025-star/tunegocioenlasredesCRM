@@ -17,9 +17,18 @@ window.VAPID_PUBLIC = 'BK8v1DrJbm1K84NNCQie4W6zBH1SQH82Xl_m4P3zzg4-K1jh1y8OiHBQX
 // persona del equipo, para que el CRM sepa de quién son las tareas. Las
 // contraseñas viven en Supabase (Authentication → Users), nunca acá.
 // Para sumar a alguien: se lo crea en Supabase y se agrega su mail a esta lista.
+// `rol` decide qué ve cada uno:
+//   socio    -> todo: prospectos, clientes, plata, tareas, campañas.
+//   vendedor -> sólo sus prospectos y su embudo. Nada de clientes ni números
+//               de la agencia.
+// Ojo: esto es la pantalla. Lo que de verdad separa los datos son las
+// políticas de la base (equipo-setup.sql). Las dos cosas tienen que decir
+// lo mismo, y el mail de acá tiene que ser IDÉNTICO al de Supabase.
 window.TNR_USUARIOS = {
-  'mateo@tunegocioenlasredes.com.ar':    { id: 'mateo',    nombre: 'Mateo De Rosa' },
-  'santiago@tunegocioenlasredes.com.ar': { id: 'santiago', nombre: 'Santiago Stalla' },
+  'mateo@tunegocioenlasredes.com.ar':       { id: 'mateo',       nombre: 'Mateo De Rosa',    rol: 'socio' },
+  'santiago@tunegocioenlasredes.com.ar':    { id: 'santiago',    nombre: 'Santiago Stalla',  rol: 'socio' },
+  'santiderosa@tunegocioenlasredes.com.ar': { id: 'santiderosa', nombre: 'Santiago De Rosa', rol: 'vendedor' },
+  'bautista@tunegocioenlasredes.com.ar':    { id: 'bautista',    nombre: 'Bautista Rega',    rol: 'vendedor' },
 };
 
 // Google Maps / Places API key para "Buscar Negocios" con datos completos
