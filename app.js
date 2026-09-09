@@ -131,10 +131,14 @@
      ROUTER
      ============================================================ */
 
-  // Un vendedor entra a vender: sus prospectos y su embudo. Clientes, plata,
-  // tareas y proyectos son de los socios. Esto es la pantalla; el candado de
-  // verdad está en las políticas de la base (equipo-setup.sql).
-  const VISTAS_VENDEDOR = ['prospectos', 'dashboard'];
+  // Un vendedor entra a vender: sus prospectos, su embudo, y las tareas y
+  // rutinas que le tocan. Lo que no ve: clientes, facturación, reuniones,
+  // proyectos y campañas — eso es de los socios.
+  // Esto es la pantalla; el candado de verdad está en las políticas de la
+  // base (equipo-setup.sql). Las dos listas tienen que decir lo mismo.
+  const VISTAS_VENDEDOR = ['prospectos', 'dashboard', 'hoy', 'tareas',
+                           'rutinas', 'agenda', 'avisos', 'productividad',
+                           'notificaciones'];
   const esSocio = () => !!(window.Auth && Auth.esSocio);
   const puedeVer = (v) => esSocio() || VISTAS_VENDEDOR.includes(v);
 
@@ -1983,8 +1987,11 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
       { v: 'prospectos', ic: 'target', label: 'Prospección' },
       { v: '__more', ic: 'menu', label: 'Más' },
     ] : [
+      { v: 'hoy', ic: 'sun', label: 'Hoy' },
       { v: 'prospectos', ic: 'target', label: 'Prospección' },
+      { v: 'tareas', ic: 'check-square', label: 'Tareas' },
       { v: 'dashboard', ic: 'dashboard', label: 'Mi embudo' },
+      { v: '__more', ic: 'menu', label: 'Más' },
     ];
     const nav = document.createElement('nav');
     nav.className = 'bottom-nav';

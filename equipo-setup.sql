@@ -7,8 +7,10 @@
 -- clientes, la facturación. Con Bauti y Santi De Rosa sumándose al equipo
 -- eso deja de servir. Este archivo hace dos cosas:
 --
---   1. Cada prospecto pasa a tener dueño, y el vendedor sólo ve los suyos.
---   2. Clientes, facturación, tareas y proyectos quedan sólo para los socios.
+--   1. Prospectos, tareas y rutinas pasan a tener dueño. El vendedor ve los
+--      suyos y los compartidos ("equipo" / "ambos"). El socio ve todo.
+--   2. Clientes, facturación, reuniones, proyectos, metas y campañas quedan
+--      sólo para los socios.
 --
 -- Esto se hace en la BASE, no en la pantalla. Esconder un botón no protege
 -- nada: con la anon key y el navegador se lee igual. Acá el que no tiene
@@ -79,14 +81,6 @@ begin
   end if;
 end $$;
 
--- El dueño del prospecto vive dentro del jsonb. Lo exponemos como columna
--- para poder filtrar por él sin reescribir cómo guarda los datos el CRM.
-alter table prospectos
-  add column if not exists responsable text
-  generated always as (data ->> 'responsable') stored;
-
-create index if not exists prospectos_responsable_idx on prospectos (responsable);
-
 -- Dos preguntas que las políticas hacen todo el tiempo. Van como
 -- `security definer` para que puedan leer tnr_equipo sin pedir permiso.
 create or replace function tnr_es_socio() returns boolean
@@ -99,30 +93,50 @@ create or replace function tnr_mi_resp() returns text
   select e.resp_id from tnr_equipo e where e.user_id = auth.uid();
 $$;
 
--- ---------- Prospectos ----------
-drop policy if exists "tnr_auth_prospectos"    on prospectos;
-drop policy if exists "tnr_all_prospectos"     on prospectos;
-drop policy if exists "tnr_prospectos_socio"   on prospectos;
-drop policy if exists "tnr_prospectos_propios" on prospectos;
+-- ---------- Lo propio y lo compartido ----------
+-- prospectos, tareas y rutinas guardan a quién pertenecen dentro del jsonb.
+-- Lo exponemos como columna para poder filtrar sin cambiar cómo escribe la app.
+alter table prospectos add column if not exists responsable text
+  generated always as (data ->> 'responsable') stored;
+alter table tareas     add column if not exists responsable text
+  generated always as (data ->> 'responsable') stored;
+alter table rutinas    add column if not exists responsable text
+  generated always as (data ->> 'responsable') stored;
 
--- El socio ve y toca todo.
-create policy "tnr_prospectos_socio" on prospectos for all to authenticated
-  using (tnr_es_socio()) with check (tnr_es_socio());
+create index if not exists prospectos_responsable_idx on prospectos (responsable);
+create index if not exists tareas_responsable_idx     on tareas (responsable);
+create index if not exists rutinas_responsable_idx    on rutinas (responsable);
 
--- El vendedor, sólo los suyos. El `with check` además impide que se
--- autoasigne uno ajeno o cree prospectos a nombre de otro.
-create policy "tnr_prospectos_propios" on prospectos for all to authenticated
-  using (responsable is not distinct from tnr_mi_resp())
-  with check (responsable is not distinct from tnr_mi_resp());
-
--- ---------- Lo que es sólo de los socios ----------
--- Clientes, plata, tareas, proyectos y campañas no son cosa de los vendedores.
+-- El socio ve todo. El vendedor ve lo suyo y lo compartido: una tarea de
+-- "equipo" o una rutina de "ambos" es de los dos, no de nadie.
 do $$
 declare t text;
 begin
-  foreach t in array array['clientes', 'tareas', 'eventos', 'metas', 'proyectos',
-                           'rutinas', 'ajustes', 'campanas', 'campana_destinatarios',
-                           'plantillas', 'cuentas_wa', 'supresiones']
+  foreach t in array array['prospectos', 'tareas', 'rutinas']
+  loop
+    execute format('drop policy if exists %I on %I', 'tnr_auth_'   || t, t);
+    execute format('drop policy if exists %I on %I', 'tnr_all_'    || t, t);
+    execute format('drop policy if exists %I on %I', 'tnr_socio_'  || t, t);
+    execute format('drop policy if exists %I on %I', 'tnr_propios_'|| t, t);
+    execute format(
+      'create policy %I on %I for all to authenticated using (tnr_es_socio()) with check (tnr_es_socio())',
+      'tnr_socio_' || t, t);
+    execute format(
+      'create policy %I on %I for all to authenticated '
+      'using (responsable = tnr_mi_resp() or responsable in (''equipo'', ''ambos'')) '
+      'with check (responsable = tnr_mi_resp() or responsable in (''equipo'', ''ambos''))',
+      'tnr_propios_' || t, t);
+  end loop;
+end $$;
+
+-- ---------- Lo que es sólo de los socios ----------
+-- Clientes y plata, obvio. `eventos` también: son las reuniones con clientes.
+-- `proyectos` y `metas` son de la agencia, no del vendedor.
+do $$
+declare t text;
+begin
+  foreach t in array array['clientes', 'eventos', 'metas', 'proyectos', 'campanas',
+                           'campana_destinatarios', 'plantillas', 'cuentas_wa', 'supresiones']
   loop
     if to_regclass('public.' || t) is null then continue; end if;
     execute format('drop policy if exists %I on %I', 'tnr_auth_' || t, t);
@@ -134,15 +148,26 @@ begin
   end loop;
 end $$;
 
--- `mensajes` es el log de auditoría: se lee y se agrega, nunca se edita.
-drop policy if exists "tnr_auth_mensajes_leer"  on mensajes;
-drop policy if exists "tnr_auth_mensajes_crear" on mensajes;
-drop policy if exists "tnr_socio_mensajes_leer" on mensajes;
+-- `ajustes` queda abierto a quien tenga sesión: son las preferencias de cada
+-- uno (a qué hora le suena el recordatorio). Si se cierra, el vendedor no
+-- puede configurarse nada y la app le falla.
+drop policy if exists "tnr_auth_ajustes"  on ajustes;
+drop policy if exists "tnr_all_ajustes"   on ajustes;
+drop policy if exists "tnr_socio_ajustes" on ajustes;
+create policy "tnr_auth_ajustes" on ajustes for all
+  to authenticated using (true) with check (true);
+
+-- `mensajes` es el log de auditoría de las campañas: se lee y se agrega,
+-- nunca se edita. Campañas es cosa de los socios.
+drop policy if exists "tnr_auth_mensajes_leer"   on mensajes;
+drop policy if exists "tnr_auth_mensajes_crear"  on mensajes;
+drop policy if exists "tnr_socio_mensajes_leer"  on mensajes;
 drop policy if exists "tnr_socio_mensajes_crear" on mensajes;
 create policy "tnr_socio_mensajes_leer"  on mensajes for select
   to authenticated using (tnr_es_socio());
 create policy "tnr_socio_mensajes_crear" on mensajes for insert
   to authenticated with check (tnr_es_socio());
+
 
 -- ---------- Verificación ----------
 select tablename, policyname, roles
@@ -154,20 +179,17 @@ select tablename, policyname, roles
 -- ROLLBACK — si algo salió mal y hay que volver a como estaba.
 -- Deja a todos los usuarios logueados viendo todo otra vez.
 -- ============================================================
--- drop policy if exists "tnr_prospectos_socio"   on prospectos;
--- drop policy if exists "tnr_prospectos_propios" on prospectos;
--- create policy "tnr_auth_prospectos" on prospectos for all
---   to authenticated using (true) with check (true);
---
 -- do $$
 -- declare t text;
 -- begin
---   foreach t in array array['clientes','tareas','eventos','metas','proyectos',
---                            'rutinas','ajustes','campanas','campana_destinatarios',
---                            'plantillas','cuentas_wa','supresiones']
+--   foreach t in array array['prospectos','tareas','rutinas','clientes','eventos',
+--                            'metas','proyectos','ajustes','campanas',
+--                            'campana_destinatarios','plantillas','cuentas_wa',
+--                            'supresiones']
 --   loop
 --     if to_regclass('public.' || t) is null then continue; end if;
---     execute format('drop policy if exists %I on %I', 'tnr_socio_' || t, t);
+--     execute format('drop policy if exists %I on %I', 'tnr_socio_'   || t, t);
+--     execute format('drop policy if exists %I on %I', 'tnr_propios_' || t, t);
 --     execute format('create policy %I on %I for all to authenticated using (true) with check (true)',
 --                    'tnr_auth_' || t, t);
 --   end loop;
