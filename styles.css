@@ -1304,3 +1304,36 @@ tbody tr:hover .row-actions { opacity: 1; }
 .quien-tab span { font-variant-numeric: tabular-nums; opacity: .75; font-weight: 500; }
 .quien-tab.on { background: var(--brand, #1C9FE2); border-color: var(--brand, #1C9FE2); color: #fff; }
 .quien-tab.on span { opacity: .9; }
+
+/* ============================================================
+   Celular · que tocar un campo no haga zoom
+   ------------------------------------------------------------
+   iOS hace zoom solo cuando enfocás un input con letra de menos
+   de 16px, y después no vuelve: la pantalla queda corrida y el
+   contenido se ve cortado de los costados. No es un problema del
+   layout, es esa regla de Safari, y 16px es el mínimo exacto que
+   la evita.
+
+   Va con !important a propósito: hay muchas reglas puntuales
+   (.add-note input, .meta-input, .timer-cat select…) que si no
+   ganan por especificidad y vuelven a disparar el zoom.
+   ============================================================ */
+@media (max-width: 860px) {
+  input, select, textarea,
+  .field input, .field select, .field textarea,
+  .chat-input, .add-note input, .add-note select, .meta-input,
+  .timer-cat select, .content-card select,
+  .filters select, .filter-search input { font-size: 16px !important; }
+
+  /* Con la letra más grande, los campos piden un poco más de aire. */
+  .field input, .field select, .field textarea { padding: 11px 12px; }
+
+  /* Un mail o una URL sin espacios no tiene que ensanchar la ficha
+     y empujar el resto fuera de la pantalla. */
+  .modal, .modal-body, .ia-box, .note-item { overflow-wrap: anywhere; }
+
+  /* En una pantalla de 390px, 20px de borde a cada lado son 40px
+     menos de ficha. */
+  .modal-overlay { padding: 10px; }
+  .filters select { max-width: none; }
+}
