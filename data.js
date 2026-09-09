@@ -811,7 +811,10 @@
   function tareaBase() {
     return {
       id: '', fechaCreacion: '', titulo: '', observaciones: '',
-      responsable: 'equipo',      // 'mateo' | 'santiago' | 'equipo'
+      // Por defecto, de quien la crea. Antes era 'equipo', pero con las
+      // politicas cerradas el vendedor no puede escribir tareas a nombre de
+      // otro: le rechazaria el alta.
+      responsable: (window.Auth && Auth.usuarioId) || 'equipo',
       sistema: '',                // 'prospeccion' | 'gestion' | 'optimizacion'
       proyectoId: '', rutinaId: '',
       fecha: '', turno: '',       // 'Mañana' | 'Tarde' | ''

@@ -100,19 +100,16 @@ alter table prospectos add column if not exists responsable text
   generated always as (data ->> 'responsable') stored;
 alter table tareas     add column if not exists responsable text
   generated always as (data ->> 'responsable') stored;
-alter table rutinas    add column if not exists responsable text
-  generated always as (data ->> 'responsable') stored;
 
 create index if not exists prospectos_responsable_idx on prospectos (responsable);
 create index if not exists tareas_responsable_idx     on tareas (responsable);
-create index if not exists rutinas_responsable_idx    on rutinas (responsable);
 
--- El socio ve todo. El vendedor ve lo suyo y lo compartido: una tarea de
--- "equipo" o una rutina de "ambos" es de los dos, no de nadie.
+-- El socio ve todo. El vendedor ve SÓLO lo suyo, ni siquiera lo compartido:
+-- Tareas para él es un anotador propio, no la agenda del equipo.
 do $$
 declare t text;
 begin
-  foreach t in array array['prospectos', 'tareas', 'rutinas']
+  foreach t in array array['prospectos', 'tareas']
   loop
     execute format('drop policy if exists %I on %I', 'tnr_auth_'   || t, t);
     execute format('drop policy if exists %I on %I', 'tnr_all_'    || t, t);
@@ -123,20 +120,22 @@ begin
       'tnr_socio_' || t, t);
     execute format(
       'create policy %I on %I for all to authenticated '
-      'using (responsable = tnr_mi_resp() or responsable in (''equipo'', ''ambos'')) '
-      'with check (responsable = tnr_mi_resp() or responsable in (''equipo'', ''ambos''))',
+      'using (responsable = tnr_mi_resp()) '
+      'with check (responsable = tnr_mi_resp())',
       'tnr_propios_' || t, t);
   end loop;
 end $$;
 
 -- ---------- Lo que es sólo de los socios ----------
 -- Clientes y plata, obvio. `eventos` también: son las reuniones con clientes.
--- `proyectos` y `metas` son de la agencia, no del vendedor.
+-- `proyectos`, `metas` y `rutinas` son la estructura de la agencia; el
+-- vendedor no tiene esas pantallas, así que tampoco necesita las filas.
 do $$
 declare t text;
 begin
-  foreach t in array array['clientes', 'eventos', 'metas', 'proyectos', 'campanas',
-                           'campana_destinatarios', 'plantillas', 'cuentas_wa', 'supresiones']
+  foreach t in array array['clientes', 'eventos', 'metas', 'proyectos', 'rutinas',
+                           'campanas', 'campana_destinatarios', 'plantillas',
+                           'cuentas_wa', 'supresiones']
   loop
     if to_regclass('public.' || t) is null then continue; end if;
     execute format('drop policy if exists %I on %I', 'tnr_auth_' || t, t);

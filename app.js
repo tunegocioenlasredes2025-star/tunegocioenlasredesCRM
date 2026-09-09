@@ -131,14 +131,13 @@
      ROUTER
      ============================================================ */
 
-  // Un vendedor entra a vender: sus prospectos, su embudo, y las tareas y
-  // rutinas que le tocan. Lo que no ve: clientes, facturación, reuniones,
-  // proyectos y campañas — eso es de los socios.
+  // Un vendedor entra a vender. Tres pantallas y nada más: sus prospectos,
+  // su embudo, y una lista donde anotarse dos o tres cosas. Todo lo demás
+  // —clientes, plata, proyectos, rutinas, la agenda de la agencia— no es
+  // asunto suyo y sólo le agrega ruido.
   // Esto es la pantalla; el candado de verdad está en las políticas de la
   // base (equipo-setup.sql). Las dos listas tienen que decir lo mismo.
-  const VISTAS_VENDEDOR = ['prospectos', 'dashboard', 'hoy', 'tareas',
-                           'rutinas', 'agenda', 'avisos', 'productividad',
-                           'notificaciones'];
+  const VISTAS_VENDEDOR = ['prospectos', 'dashboard', 'tareas'];
   const esSocio = () => !!(window.Auth && Auth.esSocio);
   const puedeVer = (v) => esSocio() || VISTAS_VENDEDOR.includes(v);
 
@@ -1987,11 +1986,9 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
       { v: 'prospectos', ic: 'target', label: 'Prospección' },
       { v: '__more', ic: 'menu', label: 'Más' },
     ] : [
-      { v: 'hoy', ic: 'sun', label: 'Hoy' },
       { v: 'prospectos', ic: 'target', label: 'Prospección' },
-      { v: 'tareas', ic: 'check-square', label: 'Tareas' },
       { v: 'dashboard', ic: 'dashboard', label: 'Mi embudo' },
-      { v: '__more', ic: 'menu', label: 'Más' },
+      { v: 'tareas', ic: 'check-square', label: 'Tareas' },
     ];
     const nav = document.createElement('nav');
     nav.className = 'bottom-nav';

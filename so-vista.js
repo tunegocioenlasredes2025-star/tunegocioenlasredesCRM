@@ -35,7 +35,11 @@
 
   /* ---------- helpers ---------- */
   function yo() { return (window.Auth && Auth.usuarioId) || 'mateo'; }
-  function foco() { return quien || yo(); }
+  function foco() { return esVendedor() ? yo() : (quien || yo()); }
+
+  // El vendedor usa Tareas como anotador propio. No elige de quién son ni las
+  // clasifica por sistema de la agencia: esas dos cosas son del equipo.
+  function esVendedor() { return !!(window.Auth && Auth.perfil) && !Auth.esSocio; }
   function nombreDe(id) { return DB.responsableDe(id).corto; }
 
   function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
@@ -350,7 +354,7 @@
     // Las descartadas sólo aparecen si se las pide: son las que uno decidió
     // dar por perdidas, no tienen por qué ensuciar la lista todos los días.
     let list = S().todas(filtros.estado === 'descartadas').slice();
-    const resp = filtros.resp || foco();
+    const resp = esVendedor() ? yo() : (filtros.resp || foco());
     if (resp !== 'todos') list = list.filter(t => S().esDe(t, resp));
     if (filtros.sistema) list = list.filter(t => t.sistema === filtros.sistema);
     if (filtros.estado === 'abiertas') list = list.filter(t => !S().esHecha(t));
@@ -377,14 +381,14 @@
       </div>
 
       <div class="so-filters">
-        <div class="so-switch">
+        ${esVendedor() ? '' : `<div class="so-switch">
           ${[...DB.RESPONSABLES.map(r => ({ id: r.id, label: r.corto })), { id: 'todos', label: 'Todas' }]
             .map(o => `<button class="${resp === o.id ? 'on' : ''}" onclick="SO.filtrar('resp','${o.id}')">${esc(o.label)}</button>`).join('')}
         </div>
         <div class="so-chips">
           <button class="so-chip ${!filtros.sistema ? 'on' : ''}" onclick="SO.filtrar('sistema','')">Todo</button>
           ${DB.SISTEMAS.map(s => `<button class="so-chip ${filtros.sistema === s.id ? 'on' : ''}" style="--c:${s.color}" onclick="SO.filtrar('sistema','${s.id}')">${esc(s.corto)}</button>`).join('')}
-        </div>
+        </div>`}
         <div class="so-chips">
           ${[['abiertas', 'Sin terminar'], ['vencidas', 'Vencidas'], ['hechas', 'Hechas'], ['descartadas', 'Descartadas'], ['todas', 'Todas']]
             .map(([k, l]) => `<button class="so-chip ${filtros.estado === k ? 'on' : ''}" onclick="SO.filtrar('estado','${k}')">${l}</button>`).join('')}
@@ -394,7 +398,7 @@
       ${Object.keys(grupos).sort().map(k => `
         <section class="so-block">
           <h2>${titulo(k)} <span class="so-block-count">${grupos[k].filter(S().esHecha).length}/${grupos[k].length}</span></h2>
-          ${listaTareas(ordenar(grupos[k]), { mostrarResp: true, mostrarFecha: k === '0' })}
+          ${listaTareas(ordenar(grupos[k]), { mostrarResp: !esVendedor(), mostrarFecha: k === '0' })}
         </section>`).join('') ||
         `<div class="empty"><div class="e-ic">${icon('check-square', 40)}</div><h3>Nada por acá</h3><p>Cambiá los filtros o creá una tarea.</p></div>`}
     `;
@@ -869,7 +873,9 @@
     t = t || {};
     return `<form id="soFormTarea"><div class="form-grid">
       <div class="field full"><label>¿Qué hay que hacer?</label><input name="titulo" value="${esc(t.titulo || '')}" placeholder="Ej: llamar a Thiago para cerrar el mes" /></div>
-      <div class="field"><label>Quién</label><select name="responsable">${optsResp(t.responsable || foco())}</select></div>
+      ${esVendedor()
+        ? `<input type="hidden" name="responsable" value="${esc(yo())}" />`
+        : `<div class="field"><label>Quién</label><select name="responsable">${optsResp(t.responsable || foco())}</select></div>`}
       <div class="field"><label>Sistema</label><select name="sistema">${optsSistema(t.sistema || '')}</select></div>
       <div class="field"><label>Proyecto</label><select name="proyectoId">${optsProyecto(t.proyectoId || '')}</select></div>
       <div class="field"><label>Prioridad</label><select name="prioridad">${DB.PRIORIDADES_TAREA.map(p => `<option ${t.prioridad === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
