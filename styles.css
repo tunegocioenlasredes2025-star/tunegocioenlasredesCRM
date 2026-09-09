@@ -1292,3 +1292,15 @@ tbody tr:hover .row-actions { opacity: 1; }
 .tbl-embudo .num { text-align: right; font-variant-numeric: tabular-nums; }
 .tbl-embudo tfoot td { border-bottom: 0; border-top: 1px solid var(--line, #232a3a); }
 .tbl-embudo .sub2 { color: var(--muted, #8b94a8); font-size: 11px; }
+
+/* "Míos / Todos": la primera decisión al entrar a Prospección. */
+.quien-tabs { display: flex; gap: 8px; margin: 0 0 12px; }
+.quien-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 15px; border-radius: 999px; cursor: pointer;
+  background: var(--card, #151b28); color: var(--muted, #8b94a8);
+  border: 1px solid var(--line, #232a3a); font-size: 13.5px; font-weight: 600;
+}
+.quien-tab span { font-variant-numeric: tabular-nums; opacity: .75; font-weight: 500; }
+.quien-tab.on { background: var(--brand, #1C9FE2); border-color: var(--brand, #1C9FE2); color: #fff; }
+.quien-tab.on span { opacity: .9; }

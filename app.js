@@ -109,7 +109,21 @@
   let current = 'dashboard';
   let searchTerm = '';
   // Un filtro por decisión comercial y nada más: qué es, qué tan cerca está, dónde, cómo viene y por dónde se contacta.
-  const pFilters = { q: '', tipo: '', subtipo: '', prioridad: '', ciudad: '', estado: '', metodo: '' };
+  const pFilters = { q: '', tipo: '', subtipo: '', prioridad: '', ciudad: '', estado: '', metodo: '', responsable: '' };
+
+  // El responsable se cargó a mano durante años: "Mateo", "mateo", vacío.
+  // Sin normalizar, la misma persona cuenta como tres y el filtro no encuentra
+  // nada. Todo lo que no se reconoce cae en "sinasignar", que es el pozo común.
+  function respId(v) {
+    const r = String(v || '').trim().toLowerCase();
+    if (!r) return 'sinasignar';
+    if (DB.RESPONSABLES.some(x => x.id === r)) return r;
+    if (r.startsWith('mateo')) return 'mateo';
+    if (r.includes('de rosa') || r.startsWith('santider')) return 'santiderosa';
+    if (r.startsWith('bau')) return 'bautista';
+    if (r.startsWith('santi')) return 'santiago';
+    return 'sinasignar';
+  }
   let pPage = 1;
   const PAGE = 50;
 
@@ -218,20 +232,6 @@
       else pend++;
     }));
 
-    // Embudo por persona. El nombre del responsable se cargó a mano durante
-    // años ("Mateo", "mateo", vacío), asi que primero lo normalizamos al id
-    // del equipo; si no, la misma persona aparece tres veces.
-    const respId = (v) => {
-      const r = String(v || '').trim().toLowerCase();
-      if (!r) return 'sinasignar';
-      const exacto = DB.RESPONSABLES.find(x => x.id === r);
-      if (exacto) return exacto.id;
-      if (r.startsWith('mateo')) return 'mateo';
-      if (r.includes('de rosa') || r.startsWith('santider')) return 'santiderosa';
-      if (r.startsWith('bau')) return 'bautista';
-      if (r.startsWith('santi')) return 'santiago';
-      return 'sinasignar';
-    };
     const porPersona = {};
     ps.forEach(p => {
       const k = respId(p.responsable);
@@ -439,6 +439,7 @@
       (!pFilters.estado || p.estado === pFilters.estado) &&
       (!pFilters.metodo || p.metodoContacto === pFilters.metodo) &&
       (!pFilters.prioridad || p.prioridad === pFilters.prioridad) &&
+      (!pFilters.responsable || respId(p.responsable) === pFilters.responsable) &&
       (!q || [p.empresa, p.nombre, p.rubro, p.ciudad, p.direccion, p.instagram, p.whatsapp, p.telefono, p.email, p.observaciones].some(v => (v || '').toLowerCase().includes(q)))
     );
   }
@@ -486,8 +487,15 @@
         ${selectFilter('ciudad', 'Ciudad', ciudades, pFilters.ciudad)}
         ${selectFilter('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id), pFilters.estado)}
         ${selectFilter('metodo', 'Método', DB.METODOS_CONTACTO, pFilters.metodo)}
+        <select data-f="responsable" class="${pFilters.responsable ? 'on' : ''}">
+          <option value="">Responsable: todos</option>
+          ${DB.RESPONSABLES.map(r => `<option value="${esc(r.id)}"${pFilters.responsable === r.id ? ' selected' : ''}>${esc(r.nombre)}</option>`).join('')}
+          <option value="equipo"${pFilters.responsable === 'equipo' ? ' selected' : ''}>Los dos (compartido)</option>
+          <option value="sinasignar"${pFilters.responsable === 'sinasignar' ? ' selected' : ''}>Sin asignar</option>
+        </select>
         ${activos() ? `<button class="filter-clear" onclick="TNR.clearFiltros()">${icon('x')} Limpiar (${activos()})</button>` : ''}
       </div>
+      ${selectorDeQuien()}
       <div id="pList"></div>
     `;
     Icons.paintStatic();
@@ -495,6 +503,22 @@
     const si = $('#pSearch');
     if (si) si.oninput = () => { pFilters.q = si.value; pPage = 1; renderProspectosList(); };
     renderProspectosList();
+  }
+
+  // Quien mira: los propios o todos. Es lo primero que se decide al entrar,
+  // asi que va arriba y grande, no escondido en un desplegable.
+  function selectorDeQuien() {
+    const yo = (window.Auth && Auth.usuarioId) || '';
+    if (!DB.RESPONSABLES.some(r => r.id === yo)) return '';
+    const todos = DB.getProspectos();
+    const mios = todos.filter(p => respId(p.responsable) === yo).length;
+    const activo = pFilters.responsable === yo;
+    return `<div class="quien-tabs">
+      <button class="quien-tab${activo ? ' on' : ''}" onclick="TNR.verDeQuien('${esc(yo)}')">
+        Míos <span>${mios}</span></button>
+      <button class="quien-tab${pFilters.responsable ? '' : ' on'}" onclick="TNR.verDeQuien('')">
+        Todos <span>${todos.length}</span></button>
+    </div>`;
   }
 
   function renderProspectosList() {
@@ -2044,6 +2068,7 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
       DB.METRICAS_META.forEach(mt => { const el = $('#meta_' + mt.id); if (el) vals[mt.id] = +el.value || 0; });
       DB.guardarMeta(id, vals); toast('Metas guardadas', 'ok'); renderMetas();
     },
+    verDeQuien: (id) => { pFilters.responsable = id; pPage = 1; render(); },
     timer: (action) => { ({ start: timerStart, pause: timerPause, stop: timerStop, reset: timerReset }[action] || function () {})(); },
     setTimerCat: (c) => { timer.cat = c; },
     irA: (v) => setView(v),
@@ -2157,6 +2182,10 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
     initPWA();
     pintarUsuario();
     aplicarRol();      // el menú se recorta ANTES del primer dibujo
+    // Cada uno abre el CRM y ve lo suyo. El botón "Todos" está al lado para
+    // el pozo común, pero lo primero que se ve es la propia lista.
+    const yo = (window.Auth && Auth.usuarioId) || '';
+    if (DB.RESPONSABLES.some(r => r.id === yo)) pFilters.responsable = yo;
     buildBottomNav();  // y la barra del celular se arma recién ahora, que ya
                        // sabemos quién entró
     DB.onRemoteChange = () => { searchTerm ? renderSearch() : render(); };
