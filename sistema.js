@@ -58,7 +58,12 @@
   // 'ambos' se abre en una tarea para cada uno. 'equipo' es UNA tarea
   // compartida: la hace el que puede y cuenta para los dos.
   function personasDe(rutina) {
-    if (rutina.responsable === 'ambos') return DB.RESPONSABLES.map(r => r.id);
+    // "ambos" son los socios, que es lo que significaba cuando el equipo eran
+    // dos. Al sumar vendedores, esto les fabricaba a ellos las rutinas de la
+    // agencia: a Bauti le aparecian los 15 contactos de Mundo Ferretero.
+    if (rutina.responsable === 'ambos') {
+      return DB.RESPONSABLES.filter(r => r.rol === 'socio').map(r => r.id);
+    }
     return [rutina.responsable || 'equipo'];
   }
 

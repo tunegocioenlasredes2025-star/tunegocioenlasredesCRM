@@ -2212,7 +2212,11 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
       setCloudStatus(online);
       // Recién ahora, con los datos de la nube abajo, se fabrica el día:
       // si se generara antes, se duplicarían tareas que ya existen allá.
-      try { if (window.Sistema) Sistema.arrancar(); } catch (e) { console.error('Sistema', e); }
+      // Sólo para los socios. `Sistema.arrancar()` siembra los proyectos y las
+      // rutinas de la agencia y les fabrica las tareas del día: "Mundo
+      // Ferretero, 15 contactos" y compañía. Al vendedor eso no le
+      // corresponde — su lista arranca vacía y la llena él.
+      try { if (window.Sistema && esSocio()) Sistema.arrancar(); } catch (e) { console.error('Sistema', e); }
       searchTerm ? renderSearch() : render(); // refresco con datos de la nube
       // Recordatorios con horario propio (ver recordatorios.js). Reemplaza al
       // aviso único que salía al abrir la app.
@@ -2227,7 +2231,7 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
       const h = todayStr();
       if (h === ultimoDia) return;
       ultimoDia = h;
-      try { if (window.Sistema) Sistema.arrancar(); } catch (e) { console.error(e); }
+      try { if (window.Sistema && esSocio()) Sistema.arrancar(); } catch (e) { console.error(e); }
       render();
     });
   }
