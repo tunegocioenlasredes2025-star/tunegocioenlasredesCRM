@@ -1060,6 +1060,14 @@
     </div>`;
   }
 
+  // El nombre de pila del que esta usando el CRM. Va en el mensaje y en el
+  // guion de llamada: si el que escribe es Bauti, el mensaje tiene que decir
+  // Bauti, no el nombre del que escribio la plantilla.
+  function miNombre() {
+    const n = (window.Auth && Auth.nombre) || '';
+    return String(n).trim().split(/\s+/)[0] || '';
+  }
+
   function mensajeWhatsApp(p) {
     const id = p.id || (p.empresa || '') + (p.ciudad || '');
     const emp = p.empresa || p.nombre || '';
@@ -1075,10 +1083,14 @@
     const saludos = ['Hola', 'Buenas', 'Hola, ¿qué tal?', 'Buen día', '¿Cómo va?'];
     // Cortas y en primera persona. "Somos una agencia que ofrece servicios de"
     // es la frase que delata el mensaje masivo.
-    const presenta = [
-      'soy Mateo, de Tu Negocio En Las Redes, una agencia acá de zona oeste',
+    const yo = miNombre();
+    const presenta = yo ? [
+      `soy ${yo}, de Tu Negocio En Las Redes, una agencia acá de zona oeste`,
+      `soy ${yo}, te escribo de Tu Negocio En Las Redes, somos de acá de la zona`,
+      `soy ${yo}, hago webs y redes para negocios de por acá`,
+      `soy ${yo}, de Tu Negocio En Las Redes, agencia de zona oeste`,
+    ] : [
       'te escribo de Tu Negocio En Las Redes, somos de acá de la zona',
-      'soy Mateo, hago webs y redes para negocios de por acá',
       'te contacto de Tu Negocio En Las Redes, agencia de zona oeste',
     ];
     // El medio del mensaje cambia según lo que le falta al negocio, que es el motivo real del contacto.
@@ -1155,7 +1167,7 @@ Llamalo AHORA, mientras la conversación sigue caliente.
 El objetivo no es vender: es dejar día y hora para la demo.
 
 [0:00] APERTURA — 15 segundos
-"${hola}, soy Mateo de Tu Negocio En Las Redes. Te escribí recién por
+"${hola}, ${miNombre() ? 'soy ' + miNombre() + ' de' : 'te hablo de'} Tu Negocio En Las Redes. Te escribí recién por
 WhatsApp y me contestaste, así que preferí llamarte en vez de seguir tipeando.
 ¿Tenés dos minutos o te agarré en mal momento?"
   → Si está ocupado: "¿Te llamo hoy más tarde o mañana a la mañana?" y CORTÁS.
