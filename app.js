@@ -93,7 +93,9 @@
     const c = n >= 85 ? '#3ecf8e' : n >= 70 ? '#f5c451' : '#8b94a8';
     return `<span class="opor-badge" style="color:${c};border-color:${c}55;background:${c}18">${n}</span>`;
   }
-  // A/B/C es prioridad geográfica: A = pegado a la base, C = el borde de la zona que vale recorrer.
+  // A/B/C: en Mundo Ferretero es geográfica (A = pegado a la base, para la
+  // recorrida); en los prospectos de páginas web de TNR es qué tan vendible
+  // es (ver DB.vendibilidad).
   function prioridadChip(p) {
     const map = { 'A': '#3ecf8e', 'B': '#f5c451', 'C': '#8b94a8' };
     const c = map[p] || '#8b94a8';
@@ -109,7 +111,7 @@
   let current = 'dashboard';
   let searchTerm = '';
   // Un filtro por decisión comercial y nada más: qué es, qué tan cerca está, dónde, cómo viene y por dónde se contacta.
-  const pFilters = { q: '', tipo: '', subtipo: '', prioridad: '', ciudad: '', estado: '', metodo: '', responsable: '' };
+  const pFilters = { q: '', tipo: '', subtipo: '', familia: '', prioridad: '', ciudad: '', estado: '', metodo: '', responsable: '' };
 
   // El responsable se cargó a mano durante años: "Mateo", "mateo", vacío.
   // Sin normalizar, la misma persona cuenta como tres y el filtro no encuentra
@@ -274,8 +276,8 @@
     // Distribución de prospectos (Fase 5)
     const svcCount = {}; ps.forEach(p => (p.servicios || []).forEach(s => svcCount[s] = (svcCount[s] || 0) + 1));
     const svcRows = Object.entries(svcCount).sort((a, b) => b[1] - a[1]).map(([l, v]) => [l, v, '#1C9FE2']);
-    const priColors = { Urgente: '#ff5d6c', Alta: '#f59e42', Media: '#5b8cff', Baja: '#8b94a8' };
-    const priRows = ['Urgente', 'Alta', 'Media', 'Baja'].map(pr => [pr, ps.filter(p => p.prioridad === pr).length, priColors[pr]]).filter(r => r[1]);
+    const priColors = { A: '#3ecf8e', B: '#f5c451', C: '#8b94a8' };
+    const priRows = DB.PRIORIDADES.map(pr => [pr, ps.filter(p => p.prioridad === pr).length, priColors[pr]]).filter(r => r[1]);
     const topBy = (key) => { const m = {}; ps.forEach(p => { const k = p[key]; if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6); };
     const rubroRows = topBy('rubro').map(([l, v]) => [l, v, '#7c5cff']);
     const ciudadRows = topBy('ciudad').map(([l, v]) => [l, v, '#3fb5ee']);
@@ -436,8 +438,9 @@
     const q = pFilters.q.trim().toLowerCase();
     return all.filter(p =>
       // '_sin' junta todo lo que no es ferretería ni pauta MF (tandas viejas de otros rubros)
-      (!pFilters.tipo || (pFilters.tipo === '_sin' ? !p.tipo : p.tipo === pFilters.tipo)) &&
-      (!pFilters.subtipo || p.subtipo === pFilters.subtipo) &&
+      (!pFilters.tipo || (pFilters.tipo === '_sin' ? !DB.TIPOS_PROSPECTO.includes(p.tipo) : p.tipo === pFilters.tipo)) &&
+      (!pFilters.subtipo || pFilters.tipo !== DB.TIPO_FERRETERIA || p.subtipo === pFilters.subtipo) &&
+      (!pFilters.familia || DB.familiaRubro(p) === pFilters.familia) &&
       (!pFilters.ciudad || p.ciudad === pFilters.ciudad) &&
       (!pFilters.estado || p.estado === pFilters.estado) &&
       (!pFilters.metodo || p.metodoContacto === pFilters.metodo) &&
@@ -485,7 +488,8 @@
       <div class="filters">
         <div class="filter-search"><span class="search-ic" data-ic="search"></span><input type="search" id="pSearch" placeholder="Buscar nombre, dirección, teléfono…" value="${esc(pFilters.q)}" autocomplete="off" /></div>
         ${tipoFilter(pFilters.tipo)}
-        ${selectFilter('subtipo', 'Rubro', DB.SUBTIPOS, pFilters.subtipo)}
+        ${selectFamilia()}
+        ${pFilters.tipo === DB.TIPO_FERRETERIA ? selectFilter('subtipo', 'Subrubro', DB.SUBTIPOS, pFilters.subtipo) : ''}
         ${selectFilter('prioridad', 'Prioridad', DB.PRIORIDADES, pFilters.prioridad)}
         ${selectFilter('ciudad', 'Ciudad', ciudades, pFilters.ciudad)}
         ${selectFilter('estado', 'Estado', DB.ESTADOS_LEAD.map(e => e.id), pFilters.estado)}
@@ -557,6 +561,17 @@
       <select name="responsable"><option value="">Sin asignar</option>
       <option value="equipo"${actual === 'equipo' ? ' selected' : ''}>Los dos (compartido)</option>
       ${ops}</select></div>`;
+  }
+
+  // Rubro agrupado en familias, con la cantidad al lado: se ve de un vistazo a
+  // quién le estamos ofreciendo y cuánto hay de cada cosa.
+  function selectFamilia() {
+    const n = {};
+    DB.getProspectos().forEach(p => { const f = DB.familiaRubro(p); n[f] = (n[f] || 0) + 1; });
+    const ops = Object.entries(n).sort((a, b) => b[1] - a[1]);
+    const v = pFilters.familia;
+    return `<select data-f="familia" class="${v ? 'on' : ''}"><option value="">Rubro: todos</option>${
+      ops.map(([f, c]) => `<option value="${esc(f)}" ${f === v ? 'selected' : ''}>${esc(f)} (${c})</option>`).join('')}</select>`;
   }
 
   function selectFilter(key, label, opts, val) {
@@ -648,7 +663,7 @@
         <div class="field"><label>Valor estimado <span class="lbl-hint">($ por mes)</span></label>
         <input type="number" name="valorEstimado" min="0" step="10000" inputmode="numeric" value="${esc(p.valorEstimado || '')}" /></div>
         ${sel('motivoPerdida', 'Motivo de pérdida', ['', ...DB.MOTIVOS_PERDIDA])}
-        ${sel('prioridad', 'Prioridad (A = más cerca de la base)', ['', ...DB.PRIORIDADES])}
+        ${sel('prioridad', DB.esMundoFerretero(p) ? 'Prioridad (A = más cerca de la base)' : 'Prioridad (A = más vendible)', ['', ...DB.PRIORIDADES])}
         ${f('gancho', 'Gancho de venta', 'text', true)}
         <div class="field"><label>Fecha de seguimiento</label><input type="date" name="fechaSeguimiento" value="${esc(p.fechaSeguimiento || '')}" /></div>
         ${f('proximaAccion', 'Próxima acción', 'text', true)}
@@ -1225,12 +1240,17 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
     if (canal === 'Llamada' && !esPauta(p)) return guionLlamada(p);
 
     // 1) Mensaje propio cargado en el prospecto (campañas: Mundo Ferretero, etc.)
-    if (p.mensaje) {
+    //    Excepción: si es un WhatsApp de TNR y el guardado tiene renglones en
+    //    blanco, es de una tanda vieja (sin nombre, con pinta de plantilla).
+    //    Ese no se usa: sale el generador de ahora, que firma con tu nombre.
+    const guardadoViejo = canal === 'WhatsApp' && !esPauta(p) && /\n\s*\n/.test(String(p.mensaje || ''));
+    if (p.mensaje && !guardadoViejo) {
       const cuerpo = String(p.mensaje).trim();
       const firma = esPauta(p) ? `Mundo Ferretero · ${MF_MAIL}` : AGENCIA;
       if (canal === 'Email') return `Asunto: ${asuntoMail(p)}\n\n${cuerpo}\n\nSaludos,\n[Tu nombre]\n${firma}`;
       if (canal === 'Llamada') return `GUION DE LLAMADA\n\nApertura: "${cuerpo}"\n\nSi piden más info:\n${MF_PLANES.map(x => `· ${x[0]} (${x[1]}): ${x[2]}`).join('\n')}\n\nCierre: "Le mando la info por mail y coordinamos una reunión de 15 minutos."`;
-      return cuerpo;
+      // En WhatsApp, de corrido: los renglones en blanco son lo que delata la plantilla.
+      return canal === 'WhatsApp' ? cuerpo.replace(/\s*\n\s*\n\s*/g, ' ') : cuerpo;
     }
 
     // 2) WhatsApp a un prospecto comun: mensaje variado para no repetir texto entre contactos.

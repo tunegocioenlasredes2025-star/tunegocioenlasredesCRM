@@ -192,6 +192,86 @@
   const PRIORIDADES = ['A', 'B', 'C'];
   const PRIORIDADES_LEGACY = { 'Urgente': 'A', 'Alta': 'A', 'Media': 'B', 'Baja': 'C' };
 
+  // ---------- Rubros agrupados ----------
+  // El rubro viene de Google Maps tal cual: "Peluquería", "Peluqueria",
+  // "Barbería", "Salón de belleza"… son cientos de variantes. Para saber a
+  // quién le estamos ofreciendo hacen falta pocas familias, no 300 opciones
+  // en un desplegable. El orden importa: gana la primera que matchea, y
+  // "chapa y pintura" tiene que caer en Autos antes que Hogar lo tome por
+  // "pintura".
+  const FAMILIAS_RUBRO = [
+    ['Servicio técnico', /aire acondicionado|refrigeraci|heladera|lavarropa|electrodom|service de|servicio t[eé]cnico|celular|computaci|inform[aá]tic/],
+    ['Salud', /odont|dent|m[eé]dic|cl[ií]nica(?! veterinaria)|kinesi|nutrici|psic|fonoaudi|podolog|laboratorio|rehabilitaci|fisioterap|oftalm|pediatr|ginec|consultorio|salud/],
+    ['Veterinaria y mascotas', /veterinari|pet shop|mascota|canin|felin/],
+    ['Estética y belleza', /est[eé]tic|peluquer|barber|u[ñn]as|manicur|spa\b|depilaci|cosmet|maquilla|pesta[ñn]|belleza|tatuaj|peinad|masaj/],
+    ['Deporte y bienestar', /gimnasio|gym|fitness|crossfit|p[aá]del|pilates|yoga|funcional|nataci[oó]n|cancha|f[uú]tbol|tenis|artes marciales|boxeo|club/],
+    ['Eventos', /sal[oó]n de (fiestas|eventos)|salones de eventos|eventos|catering|fiestas|quinta|animaci[oó]n|fotograf/],
+    ['Profesionales', /abogad|jur[ií]dic|legal|contab|contador|escriban|inmobiliari|arquitect|seguros|gestor[ií]a/],
+    ['Geriátricos', /geri[aá]tric|residencia para mayores|adultos mayores|hogar de ancianos|tercera edad/],
+    ['Educación', /jard[ií]n de infantes|jard[ií]n maternal|colegio|escuela|instituto|academia|idioma|apoyo escolar|guarder[ií]a|educativ/],
+    ['Canal ferretero', /canal ferretero|ferreter|buloner/],
+    ['Hogar y construcción', /amoblamiento|mueble|aberturas|aluminio|marmoler|m[aá]rmol|cortina|toldo|herrer|vidrier|carpinter|pinturer[ií]a|corral[oó]n|materiales|sanitari|electricista|plomer|gasista|cerrajer|construc|pisos|revestim|pileta|climatizaci|vivero|paisaj|decoraci|jardiner|iluminaci|tapicer/],
+    ['Autos y motos', /concesionari|automotor|automovil|chapa y pintura|lubricentro|aceite|gomer[ií]a|neum[aá]tic|repuesto|lavadero|lavado de auto|moto|mec[aá]nic|taller(?! de bicicletas)|polarizad/],
+    ['Gastronomía y alimentos', /restaurant|parrill|pizzer|rotiser|panader|pasteler|confiter|helader|cafeter|caf[eé]\b|cervecer|sushi|hamburgues|empanad|comida|pastas|carnicer|verduler|diet[eé]tic|fiambrer|almac[eé]n|pescader|poller|supermercado/],
+    ['Comercio', /indumentaria|ropa|calzado|zapater|perfumer|librer[ií]a|jugueter|regaler|bazar|lencer|[oó]ptica|distribuid|mayorista|imprenta|gr[aá]fica|florer|florist|kiosco|polirubro|bicicle|casa de deportes|papeler|textil|bordado/],
+    ['Servicios', /flete|mudanza|plaga|fumigaci|tintorer|lavander|alquiler|funerar|c[aá]maras de seguridad|alarma/],
+  ];
+  // Primero por el rubro; si el rubro no dice nada, por el nombre del negocio.
+  function familiaRubro(p) {
+    const r = String((p && p.rubro) || '').toLowerCase();
+    for (const [n, re] of FAMILIAS_RUBRO) if (re.test(r)) return n;
+    const e = String((p && (p.empresa || p.nombre)) || '').toLowerCase();
+    for (const [n, re] of FAMILIAS_RUBRO) if (re.test(e)) return n;
+    return 'Otros';
+  }
+
+  // Los prospectos de Mundo Ferretero (visita a ferreterías y pauta) tienen
+  // su A/B/C GEOGRÁFICO: A es lo pegado a la base, para armar la recorrida.
+  // No se tocan. El resto son prospectos de páginas web de TNR y su A/B/C
+  // dice qué tan vendibles son.
+  const esMundoFerretero = (p) => !!p && (p.tipo === TIPO_FERRETERIA || p.tipo === TIPO_PAUTA);
+
+  function esMovil(tel) {
+    const d = String(tel || '').replace(/\D/g, '').replace(/^0+/, '').replace(/^54/, '').replace(/^9/, '');
+    if (d.length !== 10) return false;
+    const area = d.startsWith('11') ? 2 : 3;
+    return !d.slice(area).startsWith('4');   // en el AMBA el fijo empieza con 4
+  }
+
+  // Qué tan alto es el ticket del rubro para una página web: 0 alto, 1 medio, 2 bajo.
+  // Alto = una sola venta o un solo paciente nuevo ya paga varios meses de
+  // abono. Incluye los rubros donde TNR ya tiene un trabajo para mostrar:
+  // servicio técnico de aires (Service Ciro), concesionarias, centros médicos,
+  // lubricentros, estudios contables, herrería y cortinas a medida.
+  function ticketRubro(p) {
+    const f = familiaRubro(p);
+    const r = (String(p.rubro || '') + ' ' + String(p.empresa || '')).toLowerCase();
+    if (['Salud', 'Profesionales', 'Eventos', 'Deporte y bienestar', 'Geriátricos', 'Educación', 'Servicio técnico'].includes(f)) return 0;
+    if (f === 'Veterinaria y mascotas') return /veterinari|cl[ií]nica/.test(r) ? 0 : 1;
+    if (f === 'Autos y motos') return /lavadero|lavado|gomer/.test(r) ? 2 : 0;
+    if (f === 'Hogar y construcción') return /amoblamiento|mueble|aberturas|aluminio|marm|cortina|toldo|herrer|vidrier|carpinter|climatizaci|pileta|construc|pisos/.test(r) ? 0 : 1;
+    if (f === 'Estética y belleza') return /m[eé]dic|l[aá]ser/.test(r) ? 0 : 1;
+    if (f === 'Gastronomía y alimentos') return /restaurant|parrill|sushi|cervecer|catering/.test(r) ? 1 : 2;
+    if (f === 'Comercio') return /[oó]ptica|distribuid|mayorista|imprenta|gr[aá]fica|perfumer|indumentaria/.test(r) ? 1 : 2;
+    if (f === 'Canal ferretero') return 1;
+    return 2;
+  }
+
+  // A = ticket alto + WhatsApp + (Instagram o 4,7 o más en Google): es el
+  // que más rápido dice que sí. El Instagram sin web significa que ya
+  // entiende el valor de lo digital y le falta la página. Un puntaje bajo
+  // (menos de 4) resta un escalón: ese negocio tiene otro problema primero.
+  function vendibilidad(p) {
+    const t = ticketRubro(p);
+    const wa = esMovil(p.whatsapp) || esMovil(p.telefono);
+    const ig = !!p.instagram;
+    const pu = parseFloat(String(p.puntuacion || '').replace(',', '.')) || 0;
+    let n = (t === 0 && wa && (ig || pu >= 4.7)) ? 0
+          : ((t === 0 && (wa || ig)) || (t === 1 && wa && ig)) ? 1 : 2;
+    if (pu && pu < 4) n = Math.min(2, n + 1);
+    return PRIORIDADES[n];
+  }
+
   // Segmentos / campañas especiales. Permiten agrupar prospectos de un proyecto puntual.
   const SEG_MF = 'Mundo Ferretero';
   const SEGMENTOS = [
@@ -447,7 +527,11 @@
     (load().prospectos || []).forEach(p => {
       if (p._svcInit) return;
       if (!Array.isArray(p.servicios) || !p.servicios.length) p.servicios = clasificarServicios(p);
-      if (!p.prioridad) p.prioridad = prioridadDe(p);
+      if (!p.prioridad) {
+        p.prioridad = esMundoFerretero(p)
+          ? (PRIORIDADES_LEGACY[prioridadDe(p)] || '')
+          : vendibilidad(p);
+      }
       p._svcInit = true; n++;
       Cloud.push('prospectos', p);
     });
@@ -1130,6 +1214,7 @@
   window.DB = {
     METODOS_CONTACTO, ESTADOS_LEAD, ESTADOS_CONTENIDO, ESTADOS_TAREA, ESTADO_DESCARTADA, PRIORIDADES, SERVICIOS, SERVICIOS_PRINCIPAL, SEGMENTOS, SEG_MF, CANALES_CONTACTO,
     TIPOS_PROSPECTO, TIPO_FERRETERIA, TIPO_PAUTA, SUBTIPOS, subtipoDe, migrarProspectos, sincronizarTodo,
+    FAMILIAS_RUBRO, familiaRubro, vendibilidad, esMundoFerretero,
     CANALES, canalColor: (id) => (CANALES.find(c => c.id === id) || {}).color || '#8b94a8',
     clasificarServicios, prioridadDe, migrarServicios,
     PROB_ETAPA, MOTIVOS_PERDIDA, MARCAS,
