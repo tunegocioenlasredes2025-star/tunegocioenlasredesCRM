@@ -131,6 +131,7 @@
     { id: 'santiago',    nombre: 'Santiago Stalla',  corto: 'Santiago', rol: 'socio' },
     { id: 'santiderosa', nombre: 'Santiago De Rosa', corto: 'Santi R.', rol: 'vendedor' },
     { id: 'bautista',    nombre: 'Bautista Rega',    corto: 'Bauti',    rol: 'vendedor' },
+    { id: 'martina',     nombre: 'Martina',          corto: 'Martina',  rol: 'vendedor' },
   ];
   const RESP_EQUIPO = { id: 'equipo', nombre: 'Los dos (compartida)', corto: 'Equipo' };
   const responsableDe = (id) => RESPONSABLES.find(r => r.id === id) || (id === 'equipo' ? RESP_EQUIPO : { id: id || '', nombre: id || 'Sin asignar', corto: id || '—' });

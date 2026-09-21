@@ -57,13 +57,14 @@ from (values
   ('mateo@tunegocioenlasredes.com.ar',      'mateo',      'socio',    'Mateo De Rosa'),
   ('santiago@tunegocioenlasredes.com.ar',   'santiago',   'socio',    'Santiago Stalla'),
   ('santiderosa@tunegocioenlasredes.com.ar','santiderosa','vendedor', 'Santiago De Rosa'),
-  ('bautista@tunegocioenlasredes.com.ar',   'bautista',   'vendedor', 'Bautista Rega')
+  ('bautista@tunegocioenlasredes.com.ar',   'bautista',   'vendedor', 'Bautista Rega'),
+  ('martina@tunegocioenlasredes.com.ar',    'martina',    'vendedor', 'Martina')
 ) as v(email, resp_id, rol, nombre)
 join auth.users u on lower(u.email) = v.email
 on conflict (user_id) do update
   set resp_id = excluded.resp_id, rol = excluded.rol, nombre = excluded.nombre;
 
--- VERIFICACIÓN: tienen que salir 4 filas. Si falta alguna, ese usuario no
+-- VERIFICACIÓN: tienen que salir 5 filas. Si falta alguna, ese usuario no
 -- está creado en Authentication todavía. Crealo y volvé a correr el bloque.
 select email, resp_id, rol, nombre from tnr_equipo order by rol, nombre;
 

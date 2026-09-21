@@ -29,6 +29,7 @@ window.TNR_USUARIOS = {
   'santiago@tunegocioenlasredes.com.ar':    { id: 'santiago',    nombre: 'Santiago Stalla',  rol: 'socio' },
   'santiderosa@tunegocioenlasredes.com.ar': { id: 'santiderosa', nombre: 'Santiago De Rosa', rol: 'vendedor' },
   'bautista@tunegocioenlasredes.com.ar':    { id: 'bautista',    nombre: 'Bautista Rega',    rol: 'vendedor' },
+  'martina@tunegocioenlasredes.com.ar':     { id: 'martina',     nombre: 'Martina',          rol: 'vendedor' },
 };
 
 // Google Maps / Places API key para "Buscar Negocios" con datos completos
