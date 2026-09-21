@@ -125,19 +125,14 @@
   function renderHoy() {
     const persona = foco();
     const h = S().hoy();
-    // TNR y lo personal se calculan por separado a propósito: si se mezclaran,
-    // un día con los perros atendidos subiría el cumplimiento comercial.
     const ag = S().agendaDe(persona, h, 'tnr');
-    const agPers = S().agendaDe(persona, h, 'personal');
     const r = S().resumen(persona, S().rango('hoy'), 'tnr');
-    const rPers = S().resumen(persona, S().rango('hoy'), 'personal');
     const conts = S().contadores(persona, S().rango('hoy'), 'tnr');
     const manana = ordenar(ag.deHoy.filter(t => t.turno === 'Mañana'));
     const tarde = ordenar(ag.deHoy.filter(t => t.turno === 'Tarde'));
     const resto = ordenar(ag.deHoy.filter(t => !t.turno));
     const vencidas = ordenar(ag.vencidas);
     const sinFecha = ordenar(ag.sinFecha).slice(0, 6);
-    const personales = ordenar(agPers.deHoy.concat(agPers.vencidas));
 
     const equipo = DB.RESPONSABLES.map(p => ({ p, r: S().resumen(p.id, S().rango('hoy'), 'tnr'), racha: S().racha(p.id) }));
     const proyectos = DB.getProyectos().filter(p => p.estado === 'Activo');
@@ -212,17 +207,7 @@
         ${listaTareas(sinFecha, { mostrarResp: true })}
       </section>` : ''}
 
-      ${personales.length ? `
-      <section class="so-block">
-        <h2><span class="so-sys" style="--c:${DB.sistemaDe('personal').color}">Personal</span>
-          ${agPers.vencidas.length ? `<button class="so-limpiar" onclick="SO.descartarAtrasadas('${persona}','personal')">Descartar ${agPers.vencidas.length} atrasada${agPers.vencidas.length > 1 ? 's' : ''}</button>` : ''}
-          <span class="so-block-count">${rPers.hechas}/${rPers.total}</span></h2>
-        ${barra(rPers.pct, DB.sistemaDe('personal').color)}
-        <div style="height:10px"></div>
-        ${listaTareas(personales, { mostrarResp: false, mostrarFecha: true })}
-      </section>` : ''}
 
-      ${panelMiDia(persona)}
 
       <section class="panel so-panel">
         <div class="panel-title">${icon('users', 16)} El equipo hoy</div>
@@ -298,37 +283,6 @@
   /* ---------- La línea del día ----------
      El mapa de la jornada. Va plegado en el celular: no es lo primero que
      hay que ver, pero cuando hace falta ubicarse está a un toque. */
-  function panelMiDia(persona) {
-    if (persona === 'todos') return '';
-    const list = S().bloquesDe(persona, S().hoy());
-    if (!list.length) {
-      return `<div class="panel so-panel">
-        <div class="panel-title">${icon('calendar', 16)} Mi día</div>
-        <p style="margin:0 0 12px;font-size:13px;color:var(--text-dim)">Todavía no cargaste tu semana: a qué hora vas al colegio, cuándo entrenás, en qué franja trabajás para TNR.</p>
-        <button class="btn-primary" onclick="SO.ir('agenda')">${icon('calendar')} Armar mi semana</button>
-      </div>`;
-    }
-    const ahora = S().aMin(S().ahoraHHMM());
-    return `<details class="panel so-panel so-fold"${window.innerWidth > 680 ? ' open' : ''}>
-      <summary>
-        <span class="so-fold-t">${icon('calendar', 16)} Mi día</span>
-        <strong>${list.length} bloques</strong>
-        <span class="so-fold-x">${icon('chevron-right', 15)}</span>
-      </summary>
-      <div class="so-linea-dia">
-        ${list.map(b => {
-          const t = DB.tipoBloque(b.tipo);
-          const pasado = S().aMin(b.hasta) <= ahora;
-          const activo = S().aMin(b.desde) <= ahora && ahora < S().aMin(b.hasta);
-          return `<div class="so-tramo${pasado ? ' pasado' : ''}${activo ? ' activo' : ''}" style="--c:${t.color}">
-            <span class="so-tramo-h">${esc(b.desde)}<em>${esc(b.hasta)}</em></span>
-            <span class="so-tramo-b"><strong>${esc(b.titulo)}</strong>${b.nota ? `<em>${esc(b.nota)}</em>` : ''}</span>
-          </div>`;
-        }).join('')}
-      </div>
-      <button class="btn-ghost so-verall" onclick="SO.ir('agenda')">Editar mi semana ${icon('arrow-right', 13)}</button>
-    </details>`;
-  }
 
   function bloque(titulo, ic, list, persona) {
     if (!list.length) return '';
@@ -487,12 +441,9 @@
      ============================================================ */
   function renderProductividad() {
     const r = S().rango(rangoProd);
-    // El porcentaje de TNR va aparte del personal: son dos cosas distintas y
-    // mezclarlas haría que el número comercial deje de significar nada.
     const personas = DB.RESPONSABLES.map(p => ({
       ...p, res: S().resumen(p.id, r, 'tnr'), sist: S().porSistema(p.id, r, 'tnr'),
       cont: S().contadores(p.id, r, 'tnr'), racha: S().racha(p.id),
-      pers: S().resumen(p.id, r, 'personal'),
     }));
     const equipoRes = S().resumen('todos', r, 'tnr');
     const emb = embudo(r);
@@ -521,12 +472,6 @@
               <div><strong>${p.res.pendientes}</strong><span>pendientes</span></div>
               <div><strong class="${p.res.vencidas ? 'rojo' : ''}">${p.res.vencidas}</strong><span>vencidas</span></div>
             </div>
-            ${p.pers.total && p.id === yo() ? `
-            <div class="so-personal-mini" style="--c:${DB.sistemaDe('personal').color}">
-              <span>Personal</span>
-              ${barra(p.pers.pct, DB.sistemaDe('personal').color)}
-              <em>${p.pers.hechas}/${p.pers.total}</em>
-            </div>` : ''}
             <div class="so-sist">
               ${p.sist.filter(s => s.total).map(s => `
                 <div class="so-sist-row">

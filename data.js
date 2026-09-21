@@ -118,12 +118,10 @@
       desc: 'Ejecutar lo que ya vendimos: clientes y entregas.' },
     { id: 'optimizacion', label: 'Optimización',  corto: 'Optimización', color: '#3ecf8e',
       desc: 'Mejorar la propia empresa: automatizaciones, casos, capacitación.' },
-    // La vida de uno. `privado` significa que sólo la ve su dueño, y `fueraDeTNR`
-    // que no entra en el porcentaje de la agencia: si diera lo mismo darle de
-    // comer al perro que mandar 15 mails, el número de cumplimiento comercial
-    // dejaría de decir nada.
-    { id: 'personal',     label: 'Personal',      corto: 'Personal', color: '#f472b6',
-      desc: 'Hábitos, entrenamiento y vida fuera del trabajo.', privado: true, fueraDeTNR: true },
+    // Acá vivía el sistema "Personal" (hábitos, perros, entrenamiento). Se sacó
+    // el 20/09/2026: el CRM es el espacio de trabajo de TNR y la vida de cada
+    // uno hacía ruido en el medio. El código que separaba TNR de lo personal
+    // (el ámbito en sistema.js) queda, porque no molesta y ordena igual.
   ];
   const sistemaDe = (id) => SISTEMAS.find(s => s.id === id) || { id: '', label: 'Sin sistema', corto: '—', color: '#8b94a8' };
 

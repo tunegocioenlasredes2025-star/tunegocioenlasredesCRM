@@ -65,11 +65,8 @@
       return h != null && n != null && h <= n && n - h <= TOLERANCIA_MIN;
     };
     const out = [];
-    // TNR y lo personal se cuentan por separado, igual que en la pantalla.
     const tnr = Sistema.agendaDe(usuarioId, hoy, 'tnr').deHoy;
-    const pers = Sistema.agendaDe(usuarioId, hoy, 'personal').deHoy;
     const faltanT = tnr.filter(x => !Sistema.esHecha(x));
-    const faltanP = pers.filter(x => !Sistema.esHecha(x));
     const hechasT = tnr.length - faltanT.length;
 
     const push = (clave, titulo, cuerpo) => {
@@ -78,24 +75,22 @@
       out.push({ clave: k, titulo, cuerpo });
     };
 
-    if (cfg.manana && enVentana(cfg.manana) && (tnr.length || pers.length)) {
+    if (cfg.manana && enVentana(cfg.manana) && tnr.length) {
       const conts = Sistema.contadores(usuarioId, Sistema.rango('hoy'), 'tnr')
         .map(c => `${c.objetivo} ${c.corto || c.unidad}`).join(' · ');
-      const cuerpo = [conts, pers.length ? `+ ${pers.length} personales` : ''].filter(Boolean).join(' · ');
-      push('manana', `Buen día. Tenés ${tnr.length} de TNR hoy`, cuerpo || 'Abrí el CRM para ver el detalle');
+      push('manana', `Buen día. Tenés ${tnr.length} de TNR hoy`, conts || 'Abrí el CRM para ver el detalle');
     }
     if (cfg.tarde && enVentana(cfg.tarde) && faltanT.length) {
       push('tarde', `Te faltan ${faltanT.length} de ${tnr.length}`,
         faltanT.slice(0, 2).map(x => x.titulo).join(' · ') + (faltanT.length > 2 ? ` y ${faltanT.length - 2} más` : ''));
     }
     if (cfg.cierre && enVentana(cfg.cierre)) {
-      const cola = faltanP.length ? ` · te quedan ${faltanP.length} personales` : '';
-      if (faltanT.length) push('cierre', `Cierre del día: ${hechasT} de ${tnr.length} de TNR`, 'Marcá lo que hiciste' + cola);
-      else if (tnr.length) push('cierre', '¡TNR cerrado!', `${tnr.length} de ${tnr.length}${cola || '. Mañana arrancamos de nuevo.'}`);
+      if (faltanT.length) push('cierre', `Cierre del día: ${hechasT} de ${tnr.length} de TNR`, 'Marcá lo que hiciste');
+      else if (tnr.length) push('cierre', '¡TNR cerrado!', `${tnr.length} de ${tnr.length}. Mañana arrancamos de nuevo.`);
     }
     if (cfg.avisarTareas) {
       // Recordatorios propios de cada tarea (los de las rutinas se heredan de la rutina).
-      const conHora = tnr.concat(pers)
+      const conHora = tnr
         .filter(x => x.recordarHora && !Sistema.esHecha(x) && enVentana(x.recordarHora));
       conHora.forEach(x => push('tk:' + x.id, x.titulo,
         (+x.objetivo ? `${x.avance || 0} de ${x.objetivo} ${DB.unidadCorta(x.unidad)}` : 'Te lo recordás para ahora')));
