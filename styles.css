@@ -1337,3 +1337,57 @@ tbody tr:hover .row-actions { opacity: 1; }
   .modal-overlay { padding: 10px; }
   .filters select { max-width: none; }
 }
+
+/* ============================================================
+   TAREAS ESCRITAS DE CORRIDO (tareas-texto.js)
+   Una caja para escribir las tareas como en un chat y la lista de
+   cómo se entendieron, para corregir antes de guardar.
+   ============================================================ */
+.tt-box {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 14px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 10px;
+}
+.tt-head { display: flex; flex-direction: column; gap: 2px; }
+.tt-head strong { font-size: 15px; }
+.tt-head span { font-size: 12.5px; color: var(--text-dim); }
+.tt-box textarea {
+  width: 100%; background: var(--bg-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--r-sm); padding: 10px 12px; font-size: 16px; line-height: 1.45; resize: vertical; min-height: 78px;
+}
+.tt-box textarea:focus { outline: none; border-color: var(--accent); }
+.tt-box textarea::placeholder { color: var(--text-faint); }
+.tt-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.tt-lista { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
+.tt-lista-head { font-size: 12.5px; color: var(--text-dim); }
+.tt-item { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 9px 10px; display: flex; flex-direction: column; gap: 7px; }
+.tt-item-top { display: flex; gap: 6px; align-items: center; }
+.tt-titulo {
+  flex: 1; min-width: 0; background: transparent; border: 1px solid transparent; color: var(--text);
+  font-size: 15px; font-weight: 600; padding: 5px 6px; border-radius: 6px;
+}
+.tt-titulo:focus { outline: none; border-color: var(--accent); background: var(--panel); }
+.tt-quitar {
+  flex: none; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-dim); font-size: 18px; line-height: 1;
+}
+.tt-campos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tt-campo {
+  background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 999px;
+  font-size: 13px; padding: 5px 10px; min-height: 32px; max-width: 100%;
+}
+.tt-campo:focus { outline: none; border-color: var(--accent); }
+/* La fecha se ve como "Vie 26/9" y el calendario se abre tocando encima */
+label.tt-campo { position: relative; display: inline-flex; align-items: center; font-weight: 700; color: var(--accent); cursor: pointer; }
+label.tt-campo input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.tt-quien { font-weight: 700; }
+.tt-prio-Alta { border-color: var(--red); color: var(--red); }
+.tt-prio-Baja { color: var(--text-dim); }
+.tt-vinculo {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-dim);
+  background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 999px; padding: 4px 6px 4px 10px;
+}
+.tt-vinculo button { border: 0; background: transparent; color: var(--text-dim); font-size: 15px; line-height: 1; padding: 0 4px; }
+.tt-guardar { align-self: flex-start; }
+.so-vinculo { cursor: pointer; color: var(--accent); }
+.tt-acciones > button { width: auto; flex: none; }
+.tt-campo, .tt-box input { color-scheme: dark; }

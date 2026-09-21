@@ -66,6 +66,17 @@
     return `<div class="so-bar"><div class="so-bar-fill" style="width:${Math.min(100, p)}%;background:${color || colorPct(p)}"></div></div>`;
   }
 
+  // La tarea escrita de corrido queda atada al prospecto o cliente que nombra.
+  // Tocando el nombre se abre su ficha, sin pasar por el buscador.
+  function vinculoChip(t) {
+    if (!t.vinculoId) return '';
+    const v = t.vinculoTipo === 'cliente' ? (DB.getCliente && DB.getCliente(t.vinculoId)) : (DB.getProspecto && DB.getProspecto(t.vinculoId));
+    if (!v) return '';
+    const nombre = v.empresa || v.nombre || '';
+    const abrir = `onclick="event.stopPropagation();TNR.${t.vinculoTipo === 'cliente' ? 'abrirCliente' : 'abrirProspecto'}('${t.vinculoId}')"`;
+    return `<span class="so-meta-x so-vinculo" ${abrir}>${icon(t.vinculoTipo === 'cliente' ? 'user' : 'target', 12)} ${esc(nombre)}</span>`;
+  }
+
   /* ============================================================
      TARJETA DE TAREA — el corazón del sistema
      ============================================================ */
@@ -82,6 +93,7 @@
       t.turno ? `<span class="so-meta-x">${esc(t.turno)}</span>` : '',
       opts.mostrarResp !== false ? `<span class="so-meta-x">${esc(nombreDe(t.responsable))}</span>` : '',
       proy ? `<span class="so-meta-x">${esc(proy.nombre)}</span>` : '',
+      vinculoChip(t),
       opts.mostrarFecha && t.fecha ? `<span class="so-meta-x">${fmtDate(t.fecha)}</span>` : '',
       S().estadoDe(t) === 'Descartada' ? `<span class="so-meta-x so-desc-tag">descartada</span>` : '',
       t.rutinaId ? `<span class="so-meta-x so-rec" title="Se repite sola">${icon('repeat', 12)}</span>` : '',
@@ -148,6 +160,7 @@
 
       ${avisoTablas()}
       ${franjaAhora(persona)}
+      ${window.TareasTexto ? TareasTexto.bloque() : ''}
 
       <section class="so-hero" style="--c:${colorPct(r.pct)}">
         <div class="so-hero-main">
@@ -333,6 +346,8 @@
         <div><h1>Tareas</h1><div class="sub">${list.length} ${filtros.estado === 'hechas' ? 'hechas' : filtros.estado === 'vencidas' ? 'vencidas' : 'sin terminar'}</div></div>
         <div class="head-actions"><button class="btn-primary" onclick="SO.nuevaTarea()">${icon('plus')}<span class="btn-label"> Nueva</span></button></div>
       </div>
+
+      ${window.TareasTexto ? TareasTexto.bloque() : ''}
 
       <div class="so-filters">
         ${esVendedor() ? '' : `<div class="so-switch">
