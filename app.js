@@ -176,7 +176,7 @@
       if (window.SOVista) window.SOVista.render(view, current);
       else view.innerHTML = '<div class="empty"><h3>No cargó el módulo</h3><p>Recargá la página.</p></div>';
     } else {
-      ({ dashboard: renderDashboard, prospectos: renderProspectos, clientes: renderClientes, campanas: renderCampanas, calendario: renderCalendario, metas: renderMetas, notificaciones: renderNotificaciones }[current] || renderHoyFallback)();
+      ({ dashboard: renderDashboard, prospectos: renderProspectos, clientes: renderClientes, campanas: renderCampanas, medicion: renderMedicion, calendario: renderCalendario, metas: renderMetas, notificaciones: renderNotificaciones }[current] || renderHoyFallback)();
     }
     updateNotifBadge();
   }
@@ -190,6 +190,12 @@
 
   // Campañas vive en su propio archivo (campanas-vista.js) porque este ya
   // es grande. Si todavía no cargó, se avisa en vez de romper la pantalla.
+  // La medición del embudo vive en medicion.js.
+  function renderMedicion() {
+    if (window.Medicion) return window.Medicion.render(view);
+    view.innerHTML = '<div class="empty"><h3>Medición no disponible</h3><p>Recargá la página.</p></div>';
+  }
+
   function renderCampanas() {
     if (window.CampanasVista) return window.CampanasVista.render(view);
     view.innerHTML = '<div class="empty"><h3>Campañas no disponible</h3><p>No se pudo cargar el módulo. Recargá la página.</p></div>';
@@ -791,6 +797,16 @@
           onclick="TNR.genMensaje('${p.id}','Llamada')">Llamar</a>` : ''}
         <button class="btn-secondary" onclick="TNR.genMensaje('${p.id}','Llamada')">Ver el guion</button>
       </div>` : ''}
+      <!-- Anotar lo que pasó tiene que ser un toque: sin esto no hay medición
+           que valga, porque el dato que falta siempre es la respuesta. -->
+      <div class="quick-log">
+        <span class="ql-lbl">¿Qué pasó?</span>
+        <button class="ql-btn" onclick="TNR.marcarContacto('${p.id}','Llamada',1)">${icon('phone', 13)} Lo llamé</button>
+        <button class="ql-btn" onclick="TNR.marcarContacto('${p.id}','Visita',1)">${icon('map-pin', 13)} Lo visité</button>
+        <button class="ql-btn ok" onclick="TNR.marcarPaso('${p.id}','Seguimiento')">${icon('check', 13)} Contestó</button>
+        <button class="ql-btn" onclick="TNR.marcarPaso('${p.id}','Demo agendada')">${icon('calendar', 13)} Demo o charla</button>
+        <button class="ql-btn no" onclick="TNR.marcarPaso('${p.id}','No funcionó')">${icon('x', 13)} No va</button>
+      </div>
       <div class="flex gap-wrap" style="justify-content:space-between;margin-bottom:16px">
         <div>${estadoChip(p.estado)} ${p.rubro ? `<span class="tag">${esc(p.rubro)}</span>` : ''}</div>
         <div class="pill-row">
@@ -1307,6 +1323,16 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
     DB.registrarContacto(id, canal);
     if (avisar) toast('Marcado como contactado por ' + canal, 'ok');
     setTimeout(() => { const p = DB.getProspecto(id); if (p && $('#modalBody')) abrirProspecto(id); if (current === 'prospectos' || current === 'dashboard') render(); }, 350);
+  }
+
+  // Un toque = un paso del embudo con su fecha. El historial es lo que después
+  // lee la pantalla de Medición, así que lo importante es que quede la fecha.
+  function marcarPaso(id, estado) {
+    const p = DB.getProspecto(id); if (!p) return;
+    if (p.estado === estado) { toast('Ya estaba en ' + estado, 'ok'); return; }
+    DB.actualizarProspecto(id, { estado: estado });
+    toast(estado === 'Seguimiento' ? 'Anotado: contestó' : 'Anotado: ' + estado, 'ok');
+    setTimeout(() => { if ($('#modalBody')) abrirProspecto(id); render(); }, 250);
   }
 
   function analizarProspecto(id) {
@@ -2072,7 +2098,7 @@ mostrarte la muestra primero y ahí te paso el número exacto."`;
      API GLOBAL (para onclick inline)
      ============================================================ */
   window.TNR = {
-    nuevoProspecto, editarProspecto, borrarProspecto, abrirProspecto, nuevoProspectoChat, revisarParse, convertirCliente,
+    nuevoProspecto, editarProspecto, borrarProspecto, abrirProspecto, nuevoProspectoChat, revisarParse, convertirCliente, marcarPaso,
     importarBase,
     clearFiltros: () => { Object.keys(pFilters).forEach(k => pFilters[k] = ''); pPage = 1; renderProspectos(); },
     analizarProspecto, genMensaje, copiarMsg, marcarContacto, mensajeWhatsApp,

@@ -45,6 +45,8 @@
     { id: 'Contactado por wsp',       color: '#25D366' },
     { id: 'Contactado por ig',        color: '#c13584' },
     { id: 'Contactado por mail+wsp',  color: '#0e7fb8' },
+    { id: 'Contactado por llamada',   color: '#f5c451' },
+    { id: 'Contactado por visita',    color: '#3ecf8e' },
     { id: 'Demo agendada',            color: '#7c5cff' },
     { id: 'Demo enviada',             color: '#f59e42' },
     { id: 'Seguimiento',              color: '#3fb5ee' },
@@ -76,6 +78,7 @@
     'Prospecto': 0,
     'Contactado por mail': 2, 'Contactado por wsp': 2,
     'Contactado por ig': 2,   'Contactado por mail+wsp': 3,
+    'Contactado por llamada': 4, 'Contactado por visita': 8,
     'Seguimiento': 15,
     'Demo agendada': 30,
     'Demo enviada': 45,
@@ -93,7 +96,7 @@
   const MARCAS = ['TNR', 'Secure Growing'];
 
   // Canales por los que ya se contactó a un prospecto (se guardan en p.canalesContacto).
-  const CANALES_CONTACTO = ['Mail', 'WhatsApp', 'Instagram'];
+  const CANALES_CONTACTO = ['Mail', 'WhatsApp', 'Instagram', 'Llamada', 'Visita'];
 
   const ESTADOS_CONTENIDO = ['Pendiente', 'En Diseño', 'En Revisión', 'Esperando Cliente', 'Aprobado', 'Programado', 'Publicado'];
   const ESTADOS_TAREA = ['Pendiente', 'En Curso', 'Finalizada'];
@@ -606,12 +609,17 @@
     'WhatsApp': 'Contactado por wsp',
     'Instagram': 'Contactado por ig',
     'Mail+WhatsApp': 'Contactado por mail+wsp',
+    // La llamada y la visita son canales propios: sin esto, el cold call y el
+    // caerle al local quedaban como "contactado" a secas y no se podían medir.
+    'Llamada': 'Contactado por llamada',
+    'Visita': 'Contactado por visita',
   };
   // Estados desde los que todavía se puede avanzar a "contactado". Incluye las
   // formas viejas porque quedan prospectos sin migrar.
   const ESTADOS_PREVIOS = ['Prospecto', 'Contactado', 'Contactado por Mail', 'Contactado por WhatsApp',
     'Contactado por Instagram', 'Contactado por Mail + WhatsApp', 'Recontactar',
-    'Contactado por mail', 'Contactado por wsp', 'Contactado por ig', 'Contactado por mail+wsp'];
+    'Contactado por mail', 'Contactado por wsp', 'Contactado por ig', 'Contactado por mail+wsp',
+    'Contactado por llamada', 'Contactado por visita'];
 
   // Pasa la base al catálogo nuevo: tipo de prospecto, estados y prioridad A/B/C.
   // Corre una sola vez sobre cada prospecto y sólo toca lo que hace falta.
