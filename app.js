@@ -518,7 +518,13 @@
       <div id="pList"></div>
     `;
     Icons.paintStatic();
-    $$('#view .filters select').forEach(s => s.onchange = () => { pFilters[s.dataset.f] = s.value; pPage = 1; renderProspectosList(); });
+    $$('#view .filters select').forEach(s => s.onchange = () => {
+      pFilters[s.dataset.f] = s.value; pPage = 1;
+      // Cambiar de cartera repinta todo (título y Míos/Todos). Las carteras de
+      // clientes son del equipo, no de uno: se abren en Todos.
+      if (s.dataset.f === 'marca') { if (s.value) pFilters.responsable = ''; renderProspectos(); return; }
+      renderProspectosList();
+    });
     const si = $('#pSearch');
     if (si) si.oninput = () => { pFilters.q = si.value; pPage = 1; renderProspectosList(); };
     renderProspectosList();
