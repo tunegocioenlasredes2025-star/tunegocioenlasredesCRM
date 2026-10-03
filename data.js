@@ -44,6 +44,7 @@
     { id: 'Contactado por mail',      color: '#1C9FE2' },
     { id: 'Contactado por wsp',       color: '#25D366' },
     { id: 'Contactado por ig',        color: '#c13584' },
+    { id: 'Contactado por fb',        color: '#1877F2' },
     { id: 'Contactado por mail+wsp',  color: '#0e7fb8' },
     { id: 'Contactado por llamada',   color: '#f5c451' },
     { id: 'Contactado por visita',    color: '#3ecf8e' },
@@ -77,7 +78,7 @@
   const PROB_ETAPA = {
     'Prospecto': 0,
     'Contactado por mail': 2, 'Contactado por wsp': 2,
-    'Contactado por ig': 2,   'Contactado por mail+wsp': 3,
+    'Contactado por ig': 2,   'Contactado por fb': 2,   'Contactado por mail+wsp': 3,
     'Contactado por llamada': 4, 'Contactado por visita': 8,
     'Seguimiento': 15,
     'Demo agendada': 30,
@@ -93,7 +94,11 @@
   ];
 
   // Las dos marcas de la alianza. Cada prospecto pertenece a una sola.
-  const MARCAS = ['TNR', 'Secure Growing'];
+  const MARCAS = ['TNR', 'Secure Growing', 'Shaffer System'];
+  // Carteras que trabajamos PARA un cliente (prospectamos en su nombre). No son
+  // ventas de TNR: quedan fuera del panel, la medición, las campañas y el
+  // pipeline. Se ven sólo eligiendo su marca en el filtro de Prospección.
+  const CARTERAS_CLIENTE = ['Shaffer System'];
 
   // Canales por los que ya se contactó a un prospecto (se guardan en p.canalesContacto).
   const CANALES_CONTACTO = ['Mail', 'WhatsApp', 'Instagram', 'Llamada', 'Visita'];
@@ -560,7 +565,14 @@
   /* ============================================================
      PROSPECTOS
      ============================================================ */
-  function getProspectos() { return load().prospectos; }
+  // Sin argumento: los prospectos de TNR (sin las carteras de clientes).
+  // Con una marca: sólo esa. Con '*': todos.
+  function getProspectos(marca) {
+    const ps = load().prospectos;
+    if (marca === '*') return ps;
+    if (marca) return ps.filter(p => (p.marca || 'TNR') === marca);
+    return ps.filter(p => CARTERAS_CLIENTE.indexOf(p.marca) < 0);
+  }
   function getProspecto(id) { return load().prospectos.find(p => p.id === id); }
 
   function crearProspecto(d) {
@@ -608,6 +620,7 @@
     'Mail': 'Contactado por mail',
     'WhatsApp': 'Contactado por wsp',
     'Instagram': 'Contactado por ig',
+    'Facebook': 'Contactado por fb',
     'Mail+WhatsApp': 'Contactado por mail+wsp',
     // La llamada y la visita son canales propios: sin esto, el cold call y el
     // caerle al local quedaban como "contactado" a secas y no se podían medir.
@@ -618,7 +631,7 @@
   // formas viejas porque quedan prospectos sin migrar.
   const ESTADOS_PREVIOS = ['Prospecto', 'Contactado', 'Contactado por Mail', 'Contactado por WhatsApp',
     'Contactado por Instagram', 'Contactado por Mail + WhatsApp', 'Recontactar',
-    'Contactado por mail', 'Contactado por wsp', 'Contactado por ig', 'Contactado por mail+wsp',
+    'Contactado por mail', 'Contactado por wsp', 'Contactado por ig', 'Contactado por fb', 'Contactado por mail+wsp',
     'Contactado por llamada', 'Contactado por visita'];
 
   // Pasa la base al catálogo nuevo: tipo de prospecto, estados y prioridad A/B/C.
@@ -1224,7 +1237,7 @@
     FAMILIAS_RUBRO, familiaRubro, vendibilidad, esMundoFerretero,
     CANALES, canalColor: (id) => (CANALES.find(c => c.id === id) || {}).color || '#8b94a8',
     clasificarServicios, prioridadDe, migrarServicios,
-    PROB_ETAPA, MOTIVOS_PERDIDA, MARCAS,
+    PROB_ETAPA, MOTIVOS_PERDIDA, MARCAS, CARTERAS_CLIENTE,
     estadoVigente, probDe, prospectosAbiertos, pipelinePonderado, sinProximoPaso, estancados,
     CATEGORIAS_EVENTO, CATEGORIAS_TIEMPO, METRICAS_META,
     catEvento: (id) => CATEGORIAS_EVENTO.find(c => c.id === id) || CATEGORIAS_EVENTO[0],

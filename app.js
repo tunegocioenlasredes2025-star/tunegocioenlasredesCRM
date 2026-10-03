@@ -111,7 +111,9 @@
   let current = 'dashboard';
   let searchTerm = '';
   // Un filtro por decisión comercial y nada más: qué es, qué tan cerca está, dónde, cómo viene y por dónde se contacta.
-  const pFilters = { q: '', tipo: '', subtipo: '', familia: '', prioridad: '', ciudad: '', estado: '', metodo: '', responsable: '' };
+  const pFilters = { q: '', tipo: '', subtipo: '', familia: '', prioridad: '', ciudad: '', estado: '', metodo: '', responsable: '', marca: '' };
+  // La marca elige la cartera: vacío = TNR (sin las carteras de clientes como Shaffer System)
+  const baseProspectos = () => DB.getProspectos(pFilters.marca || undefined);
 
   // El responsable se cargó a mano durante años: "Mateo", "mateo", vacío.
   // Sin normalizar, la misma persona cuenta como tres y el filtro no encuentra
@@ -473,14 +475,14 @@
   const activos = () => Object.keys(pFilters).filter(k => pFilters[k]).length;
 
   function renderProspectos() {
-    const all = DB.getProspectos();
+    const all = baseProspectos();
     const rubros = [...new Set(all.map(p => p.rubro).filter(Boolean))].sort();
     const ciudades = [...new Set(all.map(p => p.ciudad).filter(Boolean))].sort();
     const responsables = [...new Set(all.map(p => p.responsable).filter(Boolean))].sort();
 
     view.innerHTML = `
       <div class="view-head">
-        <div><h1>Prospección</h1><div class="sub">${all.length} prospectos en base</div></div>
+        <div><h1>Prospección${pFilters.marca && pFilters.marca !== 'TNR' ? ' · ' + esc(pFilters.marca) : ''}</h1><div class="sub">${all.length} prospectos en base</div></div>
         <div class="head-actions">
           <button class="btn-secondary" onclick="TNRUI.setView('dashboard')">${icon('bar-chart')} Panel</button>
           <button class="btn-secondary" onclick="TNR.importarBase()">${icon('upload')} Importar base</button>
@@ -493,6 +495,10 @@
 
       <div class="filters">
         <div class="filter-search"><span class="search-ic" data-ic="search"></span><input type="search" id="pSearch" placeholder="Buscar nombre, dirección, teléfono…" value="${esc(pFilters.q)}" autocomplete="off" /></div>
+        <select data-f="marca" class="${pFilters.marca ? 'on' : ''}">
+          <option value="">Marca: TNR</option>
+          ${DB.MARCAS.filter(m => m !== 'TNR').map(m => `<option value="${esc(m)}"${pFilters.marca === m ? ' selected' : ''}>${esc(m)}</option>`).join('')}
+        </select>
         ${tipoFilter(pFilters.tipo)}
         ${selectFamilia()}
         ${pFilters.tipo === DB.TIPO_FERRETERIA ? selectFilter('subtipo', 'Subrubro', DB.SUBTIPOS, pFilters.subtipo) : ''}
@@ -523,7 +529,7 @@
   function selectorDeQuien() {
     const yo = (window.Auth && Auth.usuarioId) || '';
     if (!DB.RESPONSABLES.some(r => r.id === yo)) return '';
-    const todos = DB.getProspectos();
+    const todos = baseProspectos();
     const mios = todos.filter(p => respId(p.responsable) === yo).length;
     const activo = pFilters.responsable === yo;
     return `<div class="quien-tabs">
@@ -536,7 +542,7 @@
 
   function renderProspectosList() {
     const box = $('#pList'); if (!box) return;
-    const filtered = ordenarRuta(filtrarProspectos(DB.getProspectos()));
+    const filtered = ordenarRuta(filtrarProspectos(baseProspectos()));
     const shown = filtered.slice(0, pPage * PAGE);
     const restantes = filtered.length - shown.length;
     box.innerHTML = `
@@ -596,6 +602,7 @@
     return `<div class="p-cards">${list.map(p => {
       const wa = tieneWA(p) ? waHref(p.whatsapp || p.telefono) : '';
       const ig = tieneIG(p) ? 'https://instagram.com/' + String(p.instagram).replace('@', '') : '';
+      const fb = p.facebook ? (/^https?:\/\//i.test(p.facebook) ? p.facebook : 'https://facebook.com/' + String(p.facebook).replace('@', '')) : '';
       const web = tieneWeb(p) ? (String(p.sitioWeb).startsWith('http') ? p.sitioWeb : 'https://' + p.sitioWeb) : '';
       const maps = p.maps || (p.direccion ? 'https://www.google.com/maps/search/' + encodeURIComponent(p.direccion + ' ' + (p.ciudad || '')) : '');
       const obs = String(p.observaciones || '').replace(/\s+/g, ' ').trim();
@@ -617,6 +624,7 @@
         <div class="pc-actions" onclick="event.stopPropagation()">
           ${wa ? `<a class="pc-btn wa" target="_blank" href="${wa}" onclick="TNR.marcarContacto('${p.id}','WhatsApp')">${icon('whatsapp')} WhatsApp</a>` : ''}
           ${ig ? `<a class="pc-btn ig" target="_blank" href="${ig}" onclick="TNR.marcarContacto('${p.id}','Instagram')">${icon('instagram')} Instagram</a>` : ''}
+          ${fb ? `<a class="pc-btn fb" target="_blank" href="${esc(fb)}" onclick="TNR.marcarContacto('${p.id}','Facebook')">${icon('facebook')} Facebook</a>` : ''}
           ${p.email ? `<a class="pc-btn mail" href="mailto:${esc(p.email)}" onclick="TNR.marcarContacto('${p.id}','Mail')">${icon('mail')} Mail</a>` : ''}
           ${maps ? `<a class="pc-btn maps" target="_blank" href="${esc(maps)}">${icon('map-pin')} Cómo llegar</a>` : ''}
           ${web ? `<a class="pc-btn" target="_blank" href="${esc(web)}">${icon('globe')} Web</a>` : ''}

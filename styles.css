@@ -301,6 +301,7 @@ input, select, textarea { font-family: inherit; }
 .pc-btn.wa { background: rgba(37,211,102,.14); border-color: rgba(37,211,102,.45); color: #3ddc80; }
 .pc-btn.ig { background: rgba(193,53,132,.14); border-color: rgba(193,53,132,.45); color: #e26fb0; }
 .pc-btn.mail { background: rgba(28,159,226,.14); border-color: rgba(28,159,226,.45); color: var(--accent); }
+.pc-btn.fb { background: rgba(24,119,242,.14); border-color: rgba(24,119,242,.45); color: #6fa8ff; }
 .pc-btn.maps { background: rgba(245,196,81,.12); border-color: rgba(245,196,81,.4); color: var(--yellow); }
 
 @media (min-width: 900px) {
