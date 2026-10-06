@@ -3,12 +3,12 @@
    - Cachea el shell para que la app abra offline.
    - Recibe notificaciones push (cuando se configure el enviador).
    ============================================================ */
-const CACHE = 'tnr-cache-v46';
+const CACHE = 'tnr-cache-v47';
 const ASSETS = [
   './', './index.html',
-  './styles.css?v=35', './icons.js?v=35', './config.js?v=35', './auth.js?v=35',
-  './data.js?v=35', './sistema.js?v=35', './recordatorios.js?v=35', './parser.js?v=35',
-  './so-vista.js?v=35', './app.js?v=35',
+  './styles.css?v=46', './icons.js?v=46', './config.js?v=46', './auth.js?v=46',
+  './data.js?v=46', './sistema.js?v=46', './recordatorios.js?v=46', './parser.js?v=46',
+  './so-vista.js?v=46', './app.js?v=46',
   './logo.png', './logo.svg', './favicon.png', './apple-touch-icon.png', './manifest.json',
 ];
 
