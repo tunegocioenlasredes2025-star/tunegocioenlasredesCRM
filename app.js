@@ -47,15 +47,24 @@
 
   /* ---------- Modal ---------- */
   const overlay = $('#modalOverlay');
+  let enHistorial = false;
   function openModal(title, html) {
     $('#modalTitle').textContent = title;
     $('#modalBody').innerHTML = html;
     overlay.hidden = false;
+    if (!enHistorial) { history.pushState({ tnrModal: true }, ''); enHistorial = true; }
   }
-  function closeModal() { overlay.hidden = true; $('#modalBody').innerHTML = ''; }
+  function closeModal() {
+    overlay.hidden = true; $('#modalBody').innerHTML = '';
+    if (enHistorial) { enHistorial = false; if (history.state && history.state.tnrModal) history.back(); }
+  }
   $('#modalClose').onclick = closeModal;
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !overlay.hidden) closeModal(); });
+  // En el celular el modal ocupa toda la pantalla y no queda overlay para tocar afuera.
+  // Metiéndolo en el historial, el gesto de volver atrás del teléfono lo cierra en vez
+  // de sacarte de la app, que es lo que uno intenta cuando no encuentra la X.
+  window.addEventListener('popstate', () => { if (!overlay.hidden) { enHistorial = false; closeModal(); } });
 
   // Diálogo de confirmación elegante (reemplaza a confirm() nativo)
   function confirmDialog(title, message, okLabel, onOk, danger) {

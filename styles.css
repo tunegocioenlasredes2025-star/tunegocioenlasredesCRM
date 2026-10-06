@@ -91,7 +91,21 @@ input, select, textarea { font-family: inherit; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 8px; }
 
-#app { display: flex; min-height: 100vh; }
+/* ===== Pantallas con muesca (iPhone) =====
+   El iPhone 15 se come 59px arriba con la isla dinámica y 34px abajo con la barra
+   de gestos. Todo lo que esté pegado a top:0 o bottom:0 tiene que sumar esto, o el
+   botón queda FÍSICAMENTE debajo de la barra del sistema y el dedo nunca lo toca.
+   Valen 0 en cualquier pantalla sin muesca, así que no hace falta media query. */
+:root {
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+
+/* 100dvh y no 100vh: en Safari de iPhone, 100vh cuenta la barra de direcciones
+   y deja el final de la pantalla fuera de alcance. */
+#app { display: flex; min-height: 100dvh; }
 
 /* ===== Sidebar ===== */
 .sidebar {
@@ -100,7 +114,7 @@ input, select, textarea { font-family: inherit; }
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   padding: 18px 14px;
-  position: sticky; top: 0; height: 100vh;
+  position: sticky; top: 0; height: 100dvh;
 }
 .brand { display: flex; align-items: center; gap: 12px; padding: 6px 8px 22px; }
 .brand-logo {
@@ -150,7 +164,8 @@ input, select, textarea { font-family: inherit; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar {
   display: flex; align-items: center; gap: 14px;
-  padding: 14px 26px; border-bottom: 1px solid var(--border);
+  padding: calc(14px + var(--safe-t)) calc(26px + var(--safe-r)) 14px calc(26px + var(--safe-l));
+  border-bottom: 1px solid var(--border);
   background: var(--bg-2); position: sticky; top: 0; z-index: 20;
 }
 .hamburger { display: none; background: var(--panel); border: 1px solid var(--border); color: var(--text); width: 38px; height: 38px; border-radius: var(--r-sm); font-size: 16px; }
@@ -448,14 +463,16 @@ tbody tr:hover .row-actions { opacity: 1; }
 
 /* ===== Responsive ===== */
 @media (max-width: 860px) {
-  .sidebar { position: fixed; left: 0; top: 0; z-index: 50; transform: translateX(-100%); transition: transform .25s; box-shadow: var(--shadow); }
+  .sidebar { position: fixed; left: 0; top: 0; z-index: 50; transform: translateX(-100%); transition: transform .25s; box-shadow: var(--shadow);
+    height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding-top: calc(18px + var(--safe-t)); padding-bottom: calc(18px + var(--safe-b)); }
   .sidebar.open { transform: translateX(0); }
   .hamburger { display: grid; place-items: center; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .form-grid, .parse-preview { grid-template-columns: 1fr; }
   .topbar-actions .btn-primary .btn-label { display: none; }
   .topbar-actions .btn-primary { padding: 10px; }
-  .view { padding: 16px; }
+  .view { padding: 16px calc(16px + var(--safe-r)) 16px calc(16px + var(--safe-l)); }
   .table-wrap { overflow-x: auto; }
   table { min-width: 620px; }
   .row-actions { opacity: 1; }            /* acciones siempre visibles (táctil) */
@@ -522,7 +539,7 @@ tbody tr:hover .row-actions { opacity: 1; }
 
 /* ===== Teléfonos: tablas -> tarjetas apiladas ===== */
 @media (max-width: 680px) {
-  .topbar { padding: 12px 16px; gap: 10px; }
+  .topbar { padding: calc(12px + var(--safe-t)) calc(16px + var(--safe-r)) 12px calc(16px + var(--safe-l)); gap: 10px; }
   #globalSearch { padding: 10px 12px 10px 36px; }
 
   .table-wrap { overflow: visible; border: none; background: transparent; border-radius: 0; }
@@ -572,14 +589,19 @@ tbody tr:hover .row-actions { opacity: 1; }
 
   /* Modales a pantalla completa en mobile (overlay flex para constreñir altura) */
   .modal-overlay { padding: 0; display: flex; }
-  .modal { width: 100%; max-width: 100%; height: 100%; max-height: 100%; border-radius: 0; display: flex; flex-direction: column; min-height: 0; }
-  .modal-head { flex-shrink: 0; }
-  .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .modal { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; display: flex; flex-direction: column; min-height: 0; }
+  /* La cabecera baja hasta debajo de la isla dinámica: sin esto, el título y la X
+     quedan tapados por la hora y la batería, y el botón de cerrar no se puede tocar. */
+  .modal-head { flex-shrink: 0; padding: calc(14px + var(--safe-t)) 16px 14px; gap: 12px; }
+  .modal-head h2 { min-width: 0; overflow-wrap: anywhere; }
+  .modal-close { width: 40px; height: 40px; flex-shrink: 0; }
+  .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(24px + var(--safe-b)); }
 
   /* Bottom nav visible + espacio inferior para no tapar contenido */
   .bottom-nav { display: flex; }
-  .main { padding-bottom: 66px; }
-  .toast { bottom: 80px; }
+  .main { padding-bottom: calc(66px + var(--safe-b)); }
+  .toast { bottom: calc(80px + var(--safe-b)); }
 }
 .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 45;
   background: var(--panel); border-top: 1px solid var(--border);
@@ -1058,9 +1080,9 @@ tbody tr:hover .row-actions { opacity: 1; }
 @media (max-width: 680px) {
 
   /* --- Barra de arriba: más baja, el buscador manda --- */
-  .topbar { padding: 9px 14px; gap: 8px; }
+  .topbar { padding: calc(9px + var(--safe-t)) calc(14px + var(--safe-r)) 9px calc(14px + var(--safe-l)); gap: 8px; }
   #globalSearch { padding: 9px 12px 9px 34px; font-size: 15px; }
-  .view { padding: 14px 14px 0; }
+  .view { padding: 14px calc(14px + var(--safe-r)) 0 calc(14px + var(--safe-l)); }
 
   /* --- Encabezado: título y selector de persona en la misma fila --- */
   .so-head { margin-bottom: 12px; align-items: center; gap: 8px; }
